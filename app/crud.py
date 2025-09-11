@@ -37,3 +37,34 @@ def log_user_workout(db: Session, user_id: int, workout_id: int, sets: int, reps
 
 def get_user_logs(db: Session, user_id: int):
     return db.query(models.UserLog).filter(models.UserLog.user_id == user_id).all()
+
+
+# Update a workout log
+def update_workout_log(db: Session, log_id: int, sets: int = None, reps: int = None, load: float = None, feedback: str = None):
+    log = db.query(models.WorkoutLog).filter(models.WorkoutLog.id == log_id).first()
+    if not log:
+        return None
+    
+    if sets is not None:
+        log.sets = sets
+    if reps is not None:
+        log.reps = reps
+    if load is not None:
+        log.load = load
+    if feedback is not None:
+        log.feedback = feedback
+
+    db.commit()
+    db.refresh(log)
+    return log
+
+
+# Delete a workout log
+def delete_workout_log(db: Session, log_id: int):
+    log = db.query(models.WorkoutLog).filter(models.WorkoutLog.id == log_id).first()
+    if not log:
+        return None
+    
+    db.delete(log)
+    db.commit()
+    return log

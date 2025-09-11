@@ -116,3 +116,21 @@ def get_user_logs_route(user_id: int, db: Session = Depends(get_db)):
         }
         for log in logs
     ]
+
+
+# Update log
+@app.put("/logs/{log_id}")
+def update_log_route(log_id: int, sets: int = None, reps: int = None, load: float = None, feedback: str = None, db: Session = Depends(get_db)):
+    log = crud.update_workout_log(db, log_id, sets, reps, load, feedback)
+    if not log:
+        raise HTTPException(status_code=404, detail="Log not found")
+    return log
+
+
+# Delete log
+@app.delete("/logs/{log_id}")
+def delete_log_route(log_id: int, db: Session = Depends(get_db)):
+    log = crud.delete_workout_log(db, log_id)
+    if not log:
+        raise HTTPException(status_code=404, detail="Log not found")
+    return {"detail": "Log deleted successfully"}
