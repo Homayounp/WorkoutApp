@@ -101,3 +101,11 @@ def delete_workout(db: Session, workout_id: int):
     db.delete(workout)
     db.commit()
     return workout
+
+def get_user_logs(db: Session, user_id: int):
+    return (
+        db.query(models.WorkoutLog)
+        .filter(models.WorkoutLog.user_id == user_id)
+        .join(models.Workout)
+        .all()
+    )
