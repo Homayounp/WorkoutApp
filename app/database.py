@@ -1,9 +1,7 @@
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Replace 'password' with your PostgreSQL password
-SQLALCHEMY_DATABASE_URL = "postgresql://postgres:P@risa*90@localhost:5432/workoutdb"
+SQLALCHEMY_DATABASE_URL = "postgresql://postgres:P%40risa%2A90@localhost:5432/workoutdb"
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
