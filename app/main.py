@@ -57,3 +57,62 @@ def create_workout(workout: WorkoutCreate, db: Session = Depends(get_db)):
         "default_reps": new_workout.default_reps,
         "default_load": new_workout.default_load
     }
+
+
+# Pydantic model for logging a user workout
+class UserLogCreate(BaseModel):
+    user_id: int
+    workout_id: int
+    sets: int
+    reps: int
+    load: float
+    feedback: str  # e.g., "easy", "just right", "hard"
+
+# Route: log a user workout
+@app.post("/user-logs/")
+def log_workout(log: UserLogCreate, db: Session = Depends(get_db)):
+    # Check if user exists
+    user = crud.get_user_by_email(db, db.query(models.User).filter(models.User.id==log.user_id).first().email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    new_log = crud.log_user_workout(
+        db,
+        user_id=log.user_id,
+        workout_id=log.workout_id,
+        sets=log.sets,
+        reps=log.reps,
+        load=log.load,
+        feedback=log.feedback
+    )
+    return {
+        "id": new_log.id,
+        "user_id": new_log.user_id,
+        "workout_id": new_log.workout_id,
+        "sets": new_log.sets,
+        "reps": new_log.reps,
+        "load": new_log.load,
+        "feedback": new_log.feedback,
+        "date": new_log.date
+    }
+
+# Route: get all logs for a user
+@app.get("/user-logs/{user_id}")
+def get_user_logs_route(user_id: int, db: Session = Depends(get_db)):
+    logs = crud.get_user_logs(db, user_id=user_id)
+    if not logs:
+        raise HTTPException(status_code=404, detail="No logs found for this user")
+    
+    return [
+        {
+            "id": log.id,
+            "user_id": log.user_id,
+            "workout_id": log.workout_id,
+            "sets": log.sets,
+            "reps": log.reps,
+            "load": log.load,
+            "feedback": log.feedback,
+            "date": log.date
+        }
+        for log in logs
+    ]
