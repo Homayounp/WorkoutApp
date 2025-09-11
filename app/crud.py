@@ -68,3 +68,36 @@ def delete_workout_log(db: Session, log_id: int):
     db.delete(log)
     db.commit()
     return log
+
+
+# Update a workout
+def update_workout(db: Session, workout_id: int, name: str = None, description: str = None, default_sets: int = None, default_reps: int = None, default_load: float = None):
+    workout = db.query(models.Workout).filter(models.Workout.id == workout_id).first()
+    if not workout:
+        return None
+    
+    if name is not None:
+        workout.name = name
+    if description is not None:
+        workout.description = description
+    if default_sets is not None:
+        workout.default_sets = default_sets
+    if default_reps is not None:
+        workout.default_reps = default_reps
+    if default_load is not None:
+        workout.default_load = default_load
+
+    db.commit()
+    db.refresh(workout)
+    return workout
+
+
+# Delete a workout
+def delete_workout(db: Session, workout_id: int):
+    workout = db.query(models.Workout).filter(models.Workout.id == workout_id).first()
+    if not workout:
+        return None
+    
+    db.delete(workout)
+    db.commit()
+    return workout

@@ -134,3 +134,21 @@ def delete_log_route(log_id: int, db: Session = Depends(get_db)):
     if not log:
         raise HTTPException(status_code=404, detail="Log not found")
     return {"detail": "Log deleted successfully"}
+
+
+# Update workout
+@app.put("/workouts/{workout_id}")
+def update_workout_route(workout_id: int, name: str = None, description: str = None, default_sets: int = None, default_reps: int = None, default_load: float = None, db: Session = Depends(get_db)):
+    workout = crud.update_workout(db, workout_id, name, description, default_sets, default_reps, default_load)
+    if not workout:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    return workout
+
+
+# Delete workout
+@app.delete("/workouts/{workout_id}")
+def delete_workout_route(workout_id: int, db: Session = Depends(get_db)):
+    workout = crud.delete_workout(db, workout_id)
+    if not workout:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    return {"detail": "Workout deleted successfully"}
