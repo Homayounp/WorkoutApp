@@ -1,11 +1,26 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import sessionmaker
+from urllib.parse import quote
+from app.models import Base
 
-SQLALCHEMY_DATABASE_URL = "postgresql://postgres:P%40risa%2A90@localhost:5432/workoutdb"
+# Your credentials
+DB_USER = "postgres"
+DB_PASSWORD = "P@risa*90"
+DB_HOST = "localhost"
+DB_PORT = "5432"
+DB_NAME = "workoutdb"
 
+# Encode special characters in password
+DB_PASSWORD_ENCODED = quote(DB_PASSWORD)
+
+SQLALCHEMY_DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD_ENCODED}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+# Create engine and session
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+
+# Create all tables (if not exists)
+Base.metadata.create_all(bind=engine)
 
 # Test connection
 try:
