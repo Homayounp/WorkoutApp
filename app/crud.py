@@ -18,9 +18,10 @@ def get_user_by_email(db: Session, email: str):
 # --------------------------
 # WORKOUTS
 # --------------------------
-def create_workout(db: Session, name: str, default_sets: int, default_reps: int, default_load: float):
+def create_workout(db: Session, name: str, description: str, default_sets: int, default_reps: int, default_load: float):
     workout = models.Workout(
         name=name,
+        description=description,
         default_sets=default_sets,
         default_reps=default_reps,
         default_load=default_load
@@ -30,12 +31,22 @@ def create_workout(db: Session, name: str, default_sets: int, default_reps: int,
     db.refresh(workout)
     return workout
 
-def update_workout(db: Session, workout_id: int, name: str = None, default_sets: int = None, default_reps: int = None, default_load: float = None):
+def update_workout(
+    db: Session,
+    workout_id: int,
+    name: str = None,
+    description: str = None,  # ✅ added description here
+    default_sets: int = None,
+    default_reps: int = None,
+    default_load: float = None
+):
     workout = db.query(models.Workout).filter(models.Workout.id == workout_id).first()
     if not workout:
         return None
     if name is not None:
         workout.name = name
+    if description is not None:  # ✅ update description if provided
+        workout.description = description
     if default_sets is not None:
         workout.default_sets = default_sets
     if default_reps is not None:
