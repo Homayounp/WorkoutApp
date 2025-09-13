@@ -1,13 +1,15 @@
-# Interactive dev + debugging
+# Interactive development / Jupyter
 ipython==9.5.0
 ipykernel==6.30.1
 jupyter_client==8.6.3
 jupyter_core==5.8.1
 matplotlib-inline==0.1.7
-psutil==7.0.0
-debugpy==1.8.16
 
-# Syntax highlighting & REPL support
+# Debugging & monitoring
+debugpy==1.8.16
+psutil==7.0.0
+
+# REPL helpers & syntax highlighting
 Pygments==2.19.2
 jedi==0.19.2
 parso==0.8.5
@@ -20,6 +22,8 @@ executing==2.2.1
 stack-data==0.6.3
 pure_eval==0.2.3
 wcwidth==0.2.13
+
+# Misc utilities
 platformdirs==4.4.0
 packaging==25.0
-colorama==0.4.6   # Windows terminal colors
+colorama==0.4.6; sys_platform == "win32"
