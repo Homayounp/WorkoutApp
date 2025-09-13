@@ -1,34 +1,43 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
-from sqlalchemy.sql import func
-from .database import Base
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, func
+from sqlalchemy.orm import declarative_base, relationship
 
+Base = declarative_base()
 
-# Users table
 class User(Base):
     __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
-    email = Column(String, unique=True)
-    password = Column(String)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-# Workout templates table
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    password = Column(String, nullable=False)
+
+    logs = relationship("UserLog", back_populates="user")
+
+
 class Workout(Base):
     __tablename__ = "workouts"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
-    default_sets = Column(Integer)
-    default_reps = Column(Integer)
-    default_load = Column(Float)
 
-# User workout logs table
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    default_sets = Column(Integer, nullable=False)
+    default_reps = Column(Integer, nullable=False)
+    default_load = Column(Float, nullable=False)
+
+    logs = relationship("UserLog", back_populates="workout")
+
+
 class UserLog(Base):
     __tablename__ = "user_logs"
+
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    workout_id = Column(Integer, ForeignKey("workouts.id"))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    workout_id = Column(Integer, ForeignKey("workouts.id"), nullable=False)
+    sets = Column(Integer, nullable=False)
+    reps = Column(Integer, nullable=False)
+    load = Column(Float, nullable=False)
+    feedback = Column(String, nullable=True)
     date = Column(DateTime(timezone=True), server_default=func.now())
-    sets = Column(Integer)
-    reps = Column(Integer)
-    load = Column(Float)
-    feedback = Column(String)
+
+    user = relationship("User", back_populates="logs")
+    workout = relationship("Workout", back_populates="logs")
