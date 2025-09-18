@@ -14,6 +14,9 @@ def create_user(db: Session, name: str, email: str, password: str):
 def get_user_by_email(db: Session, email: str):
     return db.query(models.User).filter(models.User.email == email).first()
 
+def get_user_by_id(db: Session, user_id: int):
+    return db.query(models.User).filter(models.User.id == user_id).first()
+
 
 # --------------------------
 # WORKOUTS
@@ -31,21 +34,24 @@ def create_workout(db: Session, name: str, description: str, default_sets: int, 
     db.refresh(workout)
     return workout
 
+def get_workout_by_id(db: Session, workout_id: int):
+    return db.query(models.Workout).filter(models.Workout.id == workout_id).first()
+
 def update_workout(
     db: Session,
     workout_id: int,
     name: str = None,
-    description: str = None,  # ✅ added description here
+    description: str = None,
     default_sets: int = None,
     default_reps: int = None,
     default_load: float = None
 ):
-    workout = db.query(models.Workout).filter(models.Workout.id == workout_id).first()
+    workout = get_workout_by_id(db, workout_id)
     if not workout:
         return None
     if name is not None:
         workout.name = name
-    if description is not None:  # ✅ update description if provided
+    if description is not None:
         workout.description = description
     if default_sets is not None:
         workout.default_sets = default_sets
@@ -58,7 +64,7 @@ def update_workout(
     return workout
 
 def delete_workout(db: Session, workout_id: int):
-    workout = db.query(models.Workout).filter(models.Workout.id == workout_id).first()
+    workout = get_workout_by_id(db, workout_id)
     if not workout:
         return None
     db.delete(workout)
