@@ -196,3 +196,14 @@ def delete_log_route(log_id: int, db: Session = Depends(get_db)):
 @app.get("/", response_model=dict)
 def root():
     return {"message": "Workout app API is running!"}
+
+
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # React dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
