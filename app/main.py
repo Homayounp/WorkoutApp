@@ -4,6 +4,7 @@ from app import models, crud
 from app.database import engine, SessionLocal, Base
 from pydantic import BaseModel
 from typing import List, Optional
+from fastapi.middleware.cors import CORSMiddleware
 
 # --------------------------
 # Create tables if they don't exist
@@ -11,6 +12,17 @@ from typing import List, Optional
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Workout App API")
+
+# --------------------------
+# Allow React frontend to connect
+# --------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # React dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --------------------------
 # Dependency: DB session
@@ -196,27 +208,3 @@ def delete_log_route(log_id: int, db: Session = Depends(get_db)):
 @app.get("/", response_model=dict)
 def root():
     return {"message": "Workout app API is running!"}
-
-
-from fastapi.middleware.cors import CORSMiddleware
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React dev server
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-from fastapi.middleware.cors import CORSMiddleware
-
-app = FastAPI()
-
-# Allow React frontend to connect
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React dev server
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
