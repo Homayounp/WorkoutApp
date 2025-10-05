@@ -2,72 +2,93 @@ import React, { useState, useEffect } from "react";
 
 function App() {
   const [users, setUsers] = useState([]);
-  const [newUser, setNewUser] = useState({ name: "", email: "", password: "" });
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
 
-  // Fetch users from backend
-  useEffect(() => {
-    fetch("http://127.0.0.1:8000/users/")
-      .then((res) => res.json())
-      .then((data) => Array.isArray(data) ? setUsers(data) : setUsers([]))
-      .catch(() => setUsers([]));
-  }, []);
-
-  // Create user
-  const handleCreateUser = async (e) => {
-    e.preventDefault();
-    const response = await fetch("http://127.0.0.1:8000/users/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newUser),
-    });
-    if (response.ok) {
-      alert("User created!");
-      setNewUser({ name: "", email: "", password: "" });
-    } else {
-      alert("Error creating user.");
+  // Fetch all users (optional, once you have a /users/ GET route)
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:8000/users/");
+      if (!res.ok) throw new Error("Failed to fetch users");
+      const data = await res.json();
+      setUsers(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error(error);
+      setUsers([]);
     }
   };
 
-  return (
-    <div style={{ padding: "30px", fontFamily: "sans-serif" }}>
-      <h1>🏋️ Workout App (Frontend)</h1>
+  // Create new user
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch("http://127.0.0.1:8000/users/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
 
-      <h2>Create User</h2>
-      <form onSubmit={handleCreateUser}>
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Error creating user");
+      }
+
+      const data = await res.json();
+      setMessage(`User created: ${data.name}`);
+      setName("");
+      setEmail("");
+      setPassword("");
+      fetchUsers(); // refresh users list
+    } catch (err) {
+      console.error(err);
+      setMessage("Error creating user.");
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  return (
+    <div style={{ padding: "2rem", fontFamily: "sans-serif" }}>
+      <h1>🏋️ Workout App</h1>
+
+      <form onSubmit={handleCreateUser} style={{ marginBottom: "1rem" }}>
         <input
-          type="text"
           placeholder="Name"
-          value={newUser.name}
-          onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
           required
+          style={{ marginRight: "10px" }}
         />
         <input
-          type="email"
           placeholder="Email"
-          value={newUser.email}
-          onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           required
+          style={{ marginRight: "10px" }}
         />
         <input
-          type="password"
           placeholder="Password"
-          value={newUser.password}
-          onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
           required
+          style={{ marginRight: "10px" }}
         />
-        <button type="submit">Add User</button>
+        <button type="submit">Create User</button>
       </form>
 
-      <h2>All Users</h2>
+      <p>{message}</p>
+
+      <h2>Users</h2>
       <ul>
         {users.length > 0 ? (
-          users.map((u) => (
-            <li key={u.id}>
-              {u.name} ({u.email})
-            </li>
-          ))
+          users.map((user) => <li key={user.id}>{user.name} — {user.email}</li>)
         ) : (
-          <li>No users yet.</li>
+          <li>No users found</li>
         )}
       </ul>
     </div>
