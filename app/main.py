@@ -146,3 +146,23 @@ def get_user_logs_route(user_id: int, db: Session = Depends(get_db)):
 @app.get("/", response_model=dict)
 def root():
     return {"message": "Workout app API is running!"}
+
+from typing import List
+from pydantic import BaseModel
+
+# Pydantic output schema for Workout
+class WorkoutOut(BaseModel):
+    id: int
+    name: str
+    description: str
+    default_sets: int
+    default_reps: int
+    default_load: float
+    class Config:
+        orm_mode = True
+
+# GET all workouts
+@app.get("/workouts/", response_model=List[WorkoutOut])
+def list_workouts(db: Session = Depends(get_db)):
+    workouts = db.query(models.Workout).all()
+    return workouts
