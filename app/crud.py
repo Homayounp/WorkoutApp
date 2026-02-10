@@ -1,117 +1,243 @@
-from sqlalchemy.orm import Session
-from app import models
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+from typing import List, Optional
+from datetime import datetime
 
-# --------------------------
-# USERS
-# --------------------------
-def create_user(db: Session, name: str, email: str, password: str):
-    new_user = models.User(name=name, email=email, password=password)
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return new_user
-
-def get_user_by_email(db: Session, email: str):
-    return db.query(models.User).filter(models.User.email == email).first()
-
-def get_user_by_id(db: Session, user_id: int):
-    return db.query(models.User).filter(models.User.id == user_id).first()
+from models import User, Exercise, WorkoutSession, WorkoutSet
+from schemas import UserCreate, WorkoutSessionCreate, WorkoutSetCreate
+from auth import get_password_hash, verify_password
 
 
-# --------------------------
-# WORKOUTS
-# --------------------------
-def create_workout(db: Session, name: str, description: str, default_sets: int, default_reps: int, default_load: float):
-    workout = models.Workout(
-        name=name,
-        description=description,
-        default_sets=default_sets,
-        default_reps=default_reps,
-        default_load=default_load
+# ============== USER CRUD ==============
+
+async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
+    """Get user by email."""
+    result = await db.execute(select(User).where(User.email == email))
+    return result.scalar_one_or_none()
+
+
+async def get_user_by_username(db: AsyncSession, username: str) -> Optional[User]:
+    """Get user by username."""
+    result = await db.execute(select(User).where(User.username == username))
+    return result.scalar_one_or_none()
+
+
+async def get_user_by_id(db: AsyncSession, user_id: int) -> Optional[User]:
+    """Get user by ID."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    return result.scalar_one_or_none()
+
+
+async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
+    """Create a new user with hashed password."""
+    hashed_password = get_password_hash(user_data.password)
+    user = User(
+        email=user_data.email,
+        username=user_data.username,
+        hashed_password=hashed_password
     )
-    db.add(workout)
-    db.commit()
-    db.refresh(workout)
-    return workout
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
 
-def get_workout_by_id(db: Session, workout_id: int):
-    return db.query(models.Workout).filter(models.Workout.id == workout_id).first()
 
-def update_workout(
-    db: Session,
-    workout_id: int,
-    name: str = None,
-    description: str = None,
-    default_sets: int = None,
-    default_reps: int = None,
-    default_load: float = None
-):
-    workout = get_workout_by_id(db, workout_id)
-    if not workout:
+async def authenticate_user(db: AsyncSession, email: str, password: str) -> Optional[User]:
+    """Authenticate user by email and password."""
+    user = await get_user_by_email(db, email)
+    if user is None:
         return None
-    if name is not None:
-        workout.name = name
-    if description is not None:
-        workout.description = description
-    if default_sets is not None:
-        workout.default_sets = default_sets
-    if default_reps is not None:
-        workout.default_reps = default_reps
-    if default_load is not None:
-        workout.default_load = default_load
-    db.commit()
-    db.refresh(workout)
-    return workout
-
-def delete_workout(db: Session, workout_id: int):
-    workout = get_workout_by_id(db, workout_id)
-    if not workout:
+    if not verify_password(password, user.hashed_password):
         return None
-    db.delete(workout)
-    db.commit()
-    return workout
+    return user
 
 
-# --------------------------
-# USER LOGS
-# --------------------------
-def log_user_workout(db: Session, user_id: int, workout_id: int, sets: int, reps: int, load: float, feedback: str):
-    log = models.UserLog(
+# ============== EXERCISE CRUD ==============
+
+async def get_exercises(
+    db: AsyncSession,
+    skip: int = 0,
+    limit: int = 100,
+    body_part: Optional[str] = None,
+    target: Optional[str] = None,
+    equipment: Optional[str] = None,
+    search: Optional[str] = None
+) -> List[Exercise]:
+    """Get exercises with optional filtering."""
+    query = select(Exercise)
+    
+    if body_part:
+        query = query.where(Exercise.body_part == body_part)
+    if target:
+        query = query.where(Exercise.target == target)
+    if equipment:
+        query = query.where(Exercise.equipment == equipment)
+    if search:
+        query = query.where(Exercise.name.ilike(f"%{search}%"))
+    
+    query = query.offset(skip).limit(limit)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+async def get_exercise_by_id(db: AsyncSession, exercise_id: str) -> Optional[Exercise]:
+    """Get single exercise by ID."""
+    result = await db.execute(select(Exercise).where(Exercise.id == exercise_id))
+    return result.scalar_one_or_none()
+
+
+async def get_body_parts(db: AsyncSession) -> List[str]:
+    """Get all unique body parts."""
+    result = await db.execute(select(Exercise.body_part).distinct())
+    return [row[0] for row in result.fetchall()]
+
+
+async def get_targets(db: AsyncSession) -> List[str]:
+    """Get all unique target muscles."""
+    result = await db.execute(select(Exercise.target).distinct())
+    return [row[0] for row in result.fetchall()]
+
+
+async def get_equipment(db: AsyncSession) -> List[str]:
+    """Get all unique equipment types."""
+    result = await db.execute(select(Exercise.equipment).distinct())
+    return [row[0] for row in result.fetchall()]
+
+
+# ============== WORKOUT SESSION CRUD ==============
+
+async def create_workout_session(
+    db: AsyncSession,
+    user_id: int,
+    session_data: WorkoutSessionCreate
+) -> WorkoutSession:
+    """Create a new workout session for a user."""
+    session = WorkoutSession(
         user_id=user_id,
-        workout_id=workout_id,
-        sets=sets,
-        reps=reps,
-        load=load,
-        feedback=feedback
+        name=session_data.name,
+        notes=session_data.notes
     )
-    db.add(log)
-    db.commit()
-    db.refresh(log)
-    return log
+    db.add(session)
+    await db.commit()
+    await db.refresh(session)
+    return session
 
-def get_user_logs(db: Session, user_id: int):
-    return db.query(models.UserLog).filter(models.UserLog.user_id == user_id).all()
 
-def update_workout_log(db: Session, log_id: int, sets: int = None, reps: int = None, load: float = None, feedback: str = None):
-    log = db.query(models.UserLog).filter(models.UserLog.id == log_id).first()
-    if not log:
+async def get_workout_sessions(
+    db: AsyncSession,
+    user_id: int,
+    skip: int = 0,
+    limit: int = 20
+) -> List[WorkoutSession]:
+    """Get all workout sessions for a user."""
+    query = (
+        select(WorkoutSession)
+        .where(WorkoutSession.user_id == user_id)
+        .options(selectinload(WorkoutSession.sets).selectinload(WorkoutSet.exercise))
+        .order_by(WorkoutSession.started_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+async def get_workout_session(
+    db: AsyncSession,
+    session_id: int,
+    user_id: int
+) -> Optional[WorkoutSession]:
+    """Get a specific workout session (must belong to user)."""
+    query = (
+        select(WorkoutSession)
+        .where(WorkoutSession.id == session_id, WorkoutSession.user_id == user_id)
+        .options(selectinload(WorkoutSession.sets).selectinload(WorkoutSet.exercise))
+    )
+    result = await db.execute(query)
+    return result.scalar_one_or_none()
+
+
+async def end_workout_session(
+    db: AsyncSession,
+    session_id: int,
+    user_id: int
+) -> Optional[WorkoutSession]:
+    """Mark a workout session as ended."""
+    session = await get_workout_session(db, session_id, user_id)
+    if session:
+        session.ended_at = datetime.utcnow()
+        await db.commit()
+        await db.refresh(session)
+    return session
+
+
+async def delete_workout_session(
+    db: AsyncSession,
+    session_id: int,
+    user_id: int
+) -> bool:
+    """Delete a workout session."""
+    session = await get_workout_session(db, session_id, user_id)
+    if session:
+        await db.delete(session)
+        await db.commit()
+        return True
+    return False
+
+
+# ============== WORKOUT SET CRUD ==============
+
+async def add_set_to_session(
+    db: AsyncSession,
+    session_id: int,
+    user_id: int,
+    set_data: WorkoutSetCreate
+) -> Optional[WorkoutSet]:
+    """Add a set to a workout session (validates ownership)."""
+    # Verify session belongs to user
+    session = await get_workout_session(db, session_id, user_id)
+    if not session:
         return None
-    if sets is not None:
-        log.sets = sets
-    if reps is not None:
-        log.reps = reps
-    if load is not None:
-        log.load = load
-    if feedback is not None:
-        log.feedback = feedback
-    db.commit()
-    db.refresh(log)
-    return log
+    
+    workout_set = WorkoutSet(
+        session_id=session_id,
+        exercise_id=set_data.exercise_id,
+        set_number=set_data.set_number,
+        reps=set_data.reps,
+        weight=set_data.weight,
+        duration_seconds=set_data.duration_seconds,
+        notes=set_data.notes
+    )
+    db.add(workout_set)
+    await db.commit()
+    await db.refresh(workout_set)
+    
+    # Load exercise relationship
+    result = await db.execute(
+        select(WorkoutSet)
+        .where(WorkoutSet.id == workout_set.id)
+        .options(selectinload(WorkoutSet.exercise))
+    )
+    return result.scalar_one()
 
-def delete_workout_log(db: Session, log_id: int):
-    log = db.query(models.UserLog).filter(models.UserLog.id == log_id).first()
-    if not log:
-        return None
-    db.delete(log)
-    db.commit()
-    return log
+
+async def delete_workout_set(
+    db: AsyncSession,
+    set_id: int,
+    user_id: int
+) -> bool:
+    """Delete a workout set (validates ownership via session)."""
+    query = (
+        select(WorkoutSet)
+        .join(WorkoutSession)
+        .where(WorkoutSet.id == set_id, WorkoutSession.user_id == user_id)
+    )
+    result = await db.execute(query)
+    workout_set = result.scalar_one_or_none()
+    
+    if workout_set:
+        await db.delete(workout_set)
+        await db.commit()
+        return True
+    return False
