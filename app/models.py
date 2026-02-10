@@ -1,43 +1,66 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, func
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Boolean
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from database import Base
 
-Base = declarative_base()
 
 class User(Base):
     __tablename__ = "users"
-
+    
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
-    password = Column(String, nullable=False)
-
-    logs = relationship("UserLog", back_populates="user")
-
-
-class Workout(Base):
-    __tablename__ = "workouts"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    description = Column(String, nullable=True)
-    default_sets = Column(Integer, nullable=False)
-    default_reps = Column(Integer, nullable=False)
-    default_load = Column(Float, nullable=False)
-
-    logs = relationship("UserLog", back_populates="workout")
+    username = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    workout_sessions = relationship("WorkoutSession", back_populates="user", cascade="all, delete-orphan")
 
 
-class UserLog(Base):
-    __tablename__ = "user_logs"
+class Exercise(Base):
+    __tablename__ = "exercises"
+
+    id = Column(String, primary_key=True, index=True)
+    name = Column(String, index=True)
+    body_part = Column(String, index=True)
+    equipment = Column(String)
+    gif_url = Column(String)
+    target = Column(String, index=True)
+
+    # Relationships
+    workout_sets = relationship("WorkoutSet", back_populates="exercise")
+
+
+class WorkoutSession(Base):
+    __tablename__ = "workout_sessions"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    workout_id = Column(Integer, ForeignKey("workouts.id"), nullable=False)
-    sets = Column(Integer, nullable=False)
-    reps = Column(Integer, nullable=False)
-    load = Column(Float, nullable=False)
-    feedback = Column(String, nullable=True)
-    date = Column(DateTime(timezone=True), server_default=func.now())
+    name = Column(String, default="Workout")
+    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    ended_at = Column(DateTime(timezone=True), nullable=True)
+    notes = Column(String, nullable=True)
 
-    user = relationship("User", back_populates="logs")
-    workout = relationship("Workout", back_populates="logs")
+    # Relationships
+    user = relationship("User", back_populates="workout_sessions")
+    sets = relationship("WorkoutSet", back_populates="session", cascade="all, delete-orphan")
+
+
+class WorkoutSet(Base):
+    __tablename__ = "workout_sets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("workout_sessions.id"), nullable=False)
+    exercise_id = Column(String, ForeignKey("exercises.id"), nullable=False)
+    set_number = Column(Integer)
+    reps = Column(Integer, nullable=True)
+    weight = Column(Float, nullable=True)
+    duration_seconds = Column(Integer, nullable=True)
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    session = relationship("WorkoutSession", back_populates="sets")
+    exercise = relationship("Exercise", back_populates="workout_sets")
