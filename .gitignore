@@ -1,43 +1,7 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.pyc
-
-# Virtual environments
-venv/
-env/
-ENV/
-.venv/
-
-# Distribution / packaging
-build/
-dist/
-*.egg-info/
-*.egg
-
-# MacOS
-.DS_Store
-
-# Windows
-Thumbs.db
-desktop.ini
-
-# VS Code
-.vscode/
-
-# Jupyter
-.ipynb_checkpoints/
-
-# Logs
-*.log
-
-# SQLite / local databases (if any)
-*.db
-*.sqlite3
-
-# Secrets / env files
 .env
-
-
+__pycache__/
+*.pyc
+venv/
+.idea/
+.vscode/
+alembic/versions/*.pyc
