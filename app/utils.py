@@ -1,21 +1,33 @@
-def adjust_workout(prev_sets, prev_reps, prev_load, feedback):
-    """
-    Adjusts workout based on user feedback.
-    feedback: "easy", "just right", "hard"
-    """
-    new_sets = prev_sets
-    new_reps = prev_reps
-    new_load = prev_load
+# app/utils.py
+from datetime import datetime, timedelta, timezone
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from app.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
 
-    if feedback == "easy":
-        new_load += 2.5
-        new_reps += 1
-    elif feedback == "hard":
-        new_load -= 2.5
-        new_reps -= 1
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-    # Ensure values are reasonable
-    new_reps = max(1, new_reps)
-    new_load = max(0, new_load)
 
-    return new_sets, new_reps, new_load
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_context.verify(plain, hashed)
+
+
+def create_access_token(data: dict) -> str:
+    to_encode = data.copy()
+    to_encode["type"] = "access"
+    to_encode["exp"] = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def create_refresh_token(data: dict) -> str:
+    to_encode = data.copy()
+    to_encode["type"] = "refresh"
+    to_encode["exp"] = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def decode_token(token: str) -> dict:
+    return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
