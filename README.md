@@ -1,264 +1,114 @@
-# 🏋️ Iron Protocol — Adaptive Workout Progression Engine
+# Iron Protocol — Adaptive Workout Progression Engine
 
-> A workout tracker that doesn't just log — it **thinks**. Built with FastAPI, SQLAlchemy, and a custom progression algorithm that cross-references soreness, pump quality, and volume perception to generate per-set targets in real time.
+> A full-stack training management system featuring a custom progression algorithm that cross-references three physiological feedback signals (soreness, pump quality, volume perception) to generate individualized per-set training targets using a deterministic decision matrix.
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-336791?logo=postgresql&logoColor=white)
-![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![Coverage](https://img.shields.io/badge/Test_Coverage-85%25+-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
 
-## 🧠 What Makes This Different
+## Motivation & Problem Statement
 
-Most workout apps are glorified spreadsheets. You log sets, you look at numbers, you guess what to do next week.
+Existing fitness applications function primarily as logging tools — they record what a user has done but provide no systematic guidance on what to do next. Progression decisions are left entirely to the user, introducing subjectivity and inconsistency.
 
-**Iron Protocol eliminates the guessing.**
+**Iron Protocol** addresses this gap by implementing a **closed-loop feedback system**: subjective session data is collected, cross-referenced across sessions, and processed through a rule-based decision matrix to produce concrete, per-set training prescriptions. The system models a simplified version of **autoregulation** — a concept well-established in sports science literature — as a deterministic algorithm.
 
-After every session, you submit three signals — **soreness**, **pump quality**, and **volume feeling**. The engine cross-references today's soreness against last session's pump and volume data, then runs a decision matrix to determine the **exact progression type** for each muscle group:
-
-| Today's Soreness | Last Pump | Last Volume | → Action |
-| :--- | :--- | :--- | :--- |
-| **None / Light** | Great | Just Right | **+2.5kg weight** |
-| **None / Light** | Low / None | Too Little | **+1 set** |
-| **Moderate** | Great | Just Right | **+2 reps** |
-| **Moderate** | Any | Too Much | **Maintain** |
-| **Severe** | Low | Too Much | **Deload −15%** |
-| **Severe** | Any | Too Little | **Deload −10%** |
-
-The result: **per-set shadow targets** — exact weight and rep prescriptions for every set of every exercise, dynamically adjusted week over week.
+This project was designed and built independently as a personal engineering challenge, with no reliance on tutorials or starter templates.
 
 ---
 
-## 🏗️ Architecture
+## System Architecture
+```mermaid
+flowchart LR
+A[React SPA\nFrontend] <-->|REST / JSON\nJWT Bearer Auth| B[FastAPI\nBackend Server]
+B <-->|SQLAlchemy 2.0\nAsync ORM| C[(PostgreSQL\nor SQLite)]
+B --- D[Progression Engine\nDecision Matrix\nTarget Generator]
+```
+
+| Layer | Technology | Rationale |
+|---|---|---|
+| **Backend** | FastAPI, Pydantic v2, SQLAlchemy 2.0 | Async-first, type-safe, auto-generated OpenAPI spec |
+| **Database** | PostgreSQL (prod) / SQLite (dev) | Relational integrity for hierarchical training data |
+| **Auth** | JWT (python-jose), bcrypt, OAuth2 Bearer | Stateless authentication with token rotation |
+| **Frontend** | React 18, React Router, Axios | Component-based SPA with protected routing |
+| **Testing** | pytest, pytest-cov, httpx | 85%+ coverage including integration tests |
+| **DevOps** | Docker Compose, Alembic, GitHub Actions | Reproducible environments, automated CI pipeline |
+
+---
+
+## Data Model
+
+The schema captures the full lifecycle of a training program — from abstract templates to concrete, logged performance data with feedback.
 
 ```mermaid
-graph LR
-    Client["🖥️ React SPA<br/>(Frontend)"]
-    API["⚡ FastAPI API<br/>(Backend)"]
-    DB[("🗄️ PostgreSQL<br/>/ SQLite")]
-    Engine(("🧠 Progression Engine<br/>(Decision Matrix +<br/>Shadow Targets)"))
+flowchart TD
+U[User] --> P[Plan\nReusable Template]
+P --> PD[PlanDay\ne.g. Push / Pull / Legs]
+PD --> PDE[PlanDayExercise\nOrdered Exercise Slot]
+PDE --> E[Exercise\nName + Muscle Group]
 
-    Client <-->|"HTTP/JSON<br/>JWT Bearer"| API
-    API <-->|"SQLAlchemy ORM"| DB
-    API --- Engine
-    
-    %% Styling
-    style Client fill:#61DAFB,stroke:#333,stroke-width:2px,color:black
-    style API fill:#009688,stroke:#333,stroke-width:2px,color:white
-    style DB fill:#336791,stroke:#333,stroke-width:2px,color:white
-    style Engine fill:#FF5722,stroke:#333,stroke-width:2px,color:white
+U --> M[Mesocycle\nActive Execution Block]
+M --> MW[MesocycleWeek\nWeek 1..N]
+MW --> MD[MesocycleDay\nScheduled Session]
+MD --> F[Feedback\nSoreness + Pump + Volume]
+MD --> MDE[MesocycleDayExercise]
+MDE --> E
+MDE --> SL[SetLog\nWeight + Reps + RPE]
 ```
-
-### Data Model Hierarchy
-
-```mermaid
-graph TD
-    User --> Plan
-    User --> Mesocycle
-    
-    subgraph Templates
-    Plan --> PlanDay
-    PlanDay --> PlanDayExercise
-    PlanDayExercise --> Exercise
-    end
-    
-    subgraph Execution
-    Mesocycle --> MesocycleWeek
-    MesocycleWeek --> MesocycleDay
-    
-    MesocycleDay --> Feedback
-    Feedback -.->|"Signals"| Soreness["Soreness / Pump / Volume"]
-    
-    MesocycleDay --> MesocycleDayExercise
-    MesocycleDayExercise --> SetLog
-    SetLog -.->|"Data"| Metrics["Weight / Reps / RPE"]
-    end
-    
-    style User fill:#333,color:white
-    style Soreness fill:#FF5722,color:white
-    style Metrics fill:#009688,color:white
-```
----
-
-## ✨ Features
-
-### Core Workout System
-- **Plan Builder** — Create reusable training templates (PPL, Upper/Lower, Full Body, etc.)
-- **Mesocycle Execution** — Start a mesocycle from any plan, auto-generates weekly structure
-- **Week Advancement** — Progress through weeks with automatic day/exercise scaffolding
-- **Per-Set Logging** — Log weight, reps, and RPE for every set
-
-### 🧠 Adaptive Progression Engine
-- **3-Signal Feedback System** — Soreness (today) × Pump (last session) × Volume Feeling (last session)
-- **Decision Matrix** — 9-cell matrix determines progression type per muscle group
-- **Per-Set Shadow Targets** — Exact weight/rep prescriptions generated for every set
-- **6 Progression Types** — `add_weight`, `add_reps`, `add_set`, `maintain`, `deload`, `add_set+reps`
-- **Set Performance Evaluation** — Compare actual vs. target volume with `improved` / `hit` / `decreased` verdicts
-- **Deload Intelligence** — Auto-prescribes 10-15% weight reductions with 2.5kg rounding
-
-### Infrastructure
-- **JWT Authentication** — Access + refresh token rotation with bcrypt hashing
-- **RESTful API** — Full OpenAPI/Swagger documentation at `/docs`
-- **Database Migrations** — Alembic for schema versioning
-- **Containerized** — Docker Compose for one-command deployment
-- **CI/CD** — GitHub Actions pipeline (lint + test)
-- **Test Coverage** — 85%+ with pytest
+**14 relational tables** with foreign key constraints, cascading deletes, and uniqueness guarantees managed through Alembic migrations.
 
 ---
 
-## 🛠️ Tech Stack
+## Core Algorithm: Adaptive Progression Engine
 
-| Layer | Technology |
-|---|---|
-| **Backend** | FastAPI, Pydantic v2, SQLAlchemy 2.0, Alembic |
-| **Database** | PostgreSQL (production) / SQLite (development) |
-| **Auth** | JWT (python-jose), bcrypt, OAuth2 Bearer |
-| **Frontend** | React 18, React Router, Axios |
-| **Testing** | pytest, pytest-cov, httpx (async test client) |
-| **DevOps** | Docker, Docker Compose, GitHub Actions |
+### Design Approach
 
----
+The engine implements a **three-phase pipeline** inspired by autoregulation principles from exercise science:
 
-## 🚀 Quick Start
+**Phase 1 — Signal Collection**
 
-### Prerequisites
-- Python 3.11+
-- PostgreSQL 15+ (or use SQLite for development)
-- Node.js 18+ (for frontend)
+Three subjective feedback signals are collected per muscle group after each session:
 
-### Option 1: Docker (Recommended)
+| Signal | Scale | Source |
+|---|---|---|
+| **Soreness** | `none`, `light`, `moderate`, `severe` | Pre-workout, current day |
+| **Pump Quality** | `none`, `light`, `moderate`, `great` | Post-workout, previous session |
+| **Volume Perception** | `too_little`, `just_right`, `too_much` | Post-workout, previous session |
 
-```bash
-git clone https://github.com/Homayounp/iron-protocol.git
-cd iron-protocol
-docker-compose up --build
-```
-> **Backend:** http://localhost:8000 | **Frontend:** http://localhost:3000 | **Docs:** http://localhost:8000/docs
+**Phase 2 — Cross-Session Analysis**
 
-### Option 2: Manual Setup
+The engine performs a temporal join: today's soreness is paired with the previous session's pump and volume data for the same muscle group. This cross-referencing captures recovery quality — a muscle that was well-stimulated (great pump, appropriate volume) but shows no soreness is ready for increased load.
 
-```bash
-# Backend
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload
-```
-```bash
-# Frontend (new terminal)
-cd frontend
-npm install
-npm start
-```
----
+**Phase 3 — Decision Matrix**
 
-## 📡 API Reference
+The combined signals are mapped through a deterministic decision matrix:
 
-### Authentication
-
-| Method | Endpoint | Description | Auth |
+| Today's Soreness | Last Pump | Last Volume | Progression Decision |
 |---|---|---|---|
-| `POST` | `/auth/register` | Create account | ❌ |
-| `POST` | `/auth/login` | Get JWT tokens | ❌ |
-| `POST` | `/auth/refresh` | Refresh access token | 🔄 |
+| None / Light | Great | Just Right | **Increase weight** (+2.5 kg) |
+| None / Light | Low / None | Too Little | **Add set** (+1) |
+| None / Light | Any | Too Much | **Maintain** current load |
+| Moderate | Great | Just Right | **Add reps** (+2) |
+| Moderate | Moderate | Too Little | **Add reps** (+1) |
+| Moderate | Any | Too Much | **Maintain** current load |
+| Severe | Great | Just Right | **Maintain** current load |
+| Severe | Any | Too Little | **Deload** (−10% weight) |
+| Severe | Low / None | Too Much | **Deload** (−15% weight) |
 
-### Exercises
+> Six progression types: `add_weight`, `add_reps`, `add_set`, `add_set+reps`, `maintain`, `deload`
 
-| Method | Endpoint | Description | Auth |
-|---|---|---|---|
-| `POST` | `/exercises/` | Create exercise | ✅ |
-| `GET` | `/exercises/` | List all exercises | ✅ |
+**Phase 4 — Per-Set Target Generation**
 
-### Plans (Templates)
-
-| Method | Endpoint | Description | Auth |
-|---|---|---|---|
-| `POST` | `/plans/` | Create training plan | ✅ |
-| `GET` | `/plans/` | List user plans | ✅ |
-| `GET` | `/plans/{id}` | Get plan details | ✅ |
-| `DELETE` | `/plans/{id}` | Delete plan | ✅ |
-
-### Mesocycles (Execution)
-
-| Method | Endpoint | Description | Auth |
-|---|---|---|---|
-| `POST` | `/mesocycles/` | Start mesocycle from plan | ✅ |
-| `GET` | `/mesocycles/` | List mesocycles | ✅ |
-| `GET` | `/mesocycles/{id}` | Get mesocycle detail | ✅ |
-| `POST` | `/mesocycles/{id}/advance-week` | Advance to next week | ✅ |
-
-### Workout Logging
-
-| Method | Endpoint | Description | Auth |
-|---|---|---|---|
-| `POST` | `/mesocycles/days/{day_id}/sets` | Log a set | ✅ |
-| `POST` | `/mesocycles/days/{day_id}/feedback` | Submit feedback | ✅ |
-| `POST` | `/mesocycles/days/{day_id}/complete` | Mark day complete | ✅ |
-
-### 🧠 Progression Engine
-
-| Method | Endpoint | Description | Auth |
-|---|---|---|---|
-| `GET` | `/mesocycles/days/{day_id}/smart-targets` | Get per-set shadow targets | ✅ |
-| `GET` | `/mesocycles/days/{day_id}/progression` | Get basic progression recommendations | ✅ |
-| `POST` | `/mesocycles/{id}/apply-progression` | Apply feedback to next week | ✅ |
-
----
-
-## 🔬 How the Progression Engine Works
-
-### Phase 1: Signal Collection
-
-Every completed session collects three subjective signals per muscle group:
-
-
-```python
-Soreness: "none" | "light" | "moderate" | "severe"
-Pump:     "none" | "light" | "moderate" | "great"
-Volume:   "too_little" | "just_right" | "too_much"
-```
-
-### Phase 2: Cross-Session Analysis
-
-When you open Week N, the engine pulls:
-
-- **Today's soreness** → from pre-workout feedback on current day
-- **Last session's pump + volume** → from previous week's completed feedback
-
-### Phase 3: Decision Matrix
-
-These signals are fed into a deterministic decision matrix:
-
-```mermaid
-graph TD
-subgraph Decision Matrix
-direction TB
-H1["<b>Soreness (Today)</b>"]
-H2["<b>Pump: Great</b><br/>Vol: Just Right"]
-H3["<b>Pump: Moderate</b><br/>Vol: Too Little"]
-H4["<b>Pump: Low/None</b><br/>Vol: Too Much"]
-end
-```
-
-| Soreness (Today) | Pump: Great / Vol: Just Right | Pump: Moderate / Vol: Too Little | Pump: Low/None / Vol: Too Much |
-|---|---|---|---|
-| **None / Light** | ✅ +Weight (2.5kg) | ➕ +Set | ⏸️ Maintain |
-| **Moderate** | 🔁 +Reps (+2) | 🔁 +Reps (+1) | ⏸️ Maintain |
-| **Severe** | ⏸️ Maintain | 📉 Deload (−10%) | 📉 Deload (−15%) |
-
-### Phase 4: Per-Set Target Generation
-
-The engine generates exact targets for every set:
+The engine generates concrete prescriptions for every set:
 
 ```json
 {
   "exercise_name": "Barbell Row",
   "progression_type": "add_weight",
-  "reason": "Great pump + good volume + fresh → +2.5kg",
+  "reason": "Great pump + appropriate volume + no soreness → +2.5kg",
   "set_targets": [
 {"set_number": 1, "target_weight": 72.5, "target_reps": 10},
 {"set_number": 2, "target_weight": 72.5, "target_reps": 9},
@@ -266,80 +116,136 @@ The engine generates exact targets for every set:
   ]
 }
 ```
-### Phase 5: Performance Evaluation
+Deload calculations apply percentage reductions with **2.5 kg rounding** (standard gym plate increments).
 
-After logging, each set is evaluated:
+**Phase 5 — Performance Evaluation**
 
-- 📈 **Improved** → actual volume > target volume (+2%)
-- ✅ **Hit** → within 5% of target
-- 📉 **Decreased** → below 95% of target
+After set completion, actual volume is compared against prescribed targets:
+
+| Verdict | Condition |
+|---|---|
+| **Improved** | Actual volume exceeds target by > 2% |
+| **Hit** | Within ± 5% of target |
+| **Decreased** | Below 95% of target |
+
+This evaluation feeds forward into subsequent weeks, creating a **closed feedback loop**.
 
 ---
 
-## 🧪 Testing
+## API Design
+
+Full RESTful API with OpenAPI documentation auto-generated at `/docs`.
+
+### Authentication
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/auth/register` | Account creation |
+| `POST` | `/auth/login` | JWT token pair issuance |
+| `POST` | `/auth/refresh` | Access token renewal |
+
+### Resource Management
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/exercises/` | Create exercise definition |
+| `GET` | `/exercises/` | List exercises |
+| `POST` | `/plans/` | Create training plan template |
+| `GET` | `/plans/` | List user plans |
+| `GET` | `/plans/{id}` | Retrieve plan with full structure |
+| `DELETE` | `/plans/{id}` | Delete plan (cascade) |
+
+### Mesocycle Execution
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/mesocycles/` | Initialize mesocycle from plan |
+| `GET` | `/mesocycles/{id}` | Retrieve mesocycle state |
+| `POST` | `/mesocycles/{id}/advance-week` | Generate next week's structure |
+| `POST` | `/mesocycles/days/{day_id}/sets` | Log individual set |
+| `POST` | `/mesocycles/days/{day_id}/feedback` | Submit session feedback |
+| `POST` | `/mesocycles/days/{day_id}/complete` | Mark session complete |
+
+### Progression Engine
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/mesocycles/days/{day_id}/smart-targets` | Retrieve per-set shadow targets |
+| `GET` | `/mesocycles/days/{day_id}/progression` | Get progression recommendations |
+| `POST` | `/mesocycles/{id}/apply-progression` | Apply decisions to next week |
+
+---
+
+## Software Engineering Practices
+
+| Practice | Implementation |
+|---|---|
+| **Type Safety** | Pydantic v2 schemas for all request/response validation |
+| **Database Migrations** | Alembic version-controlled schema evolution |
+| **Test Coverage** | 85%+ with pytest; unit + integration tests |
+| **CI/CD** | GitHub Actions: lint → test → report on every push |
+| **Containerization** | Docker Compose for reproducible multi-service deployment |
+| **API Documentation** | Auto-generated OpenAPI 3.0 spec via FastAPI |
+| **Authentication** | JWT access + refresh token rotation, bcrypt password hashing |
+| **Code Organization** | Separation of concerns: models, schemas, CRUD/business logic, routes |
+
+---
+
+## Running the Project
+
+### Docker (Recommended)
 
 ```bash
+git clone https://github.com/Homayounp/iron-protocol.git
+cd iron-protocol
+docker-compose up --build
+```
+| Service | URL |
+|---|---|
+| API Server | `http://localhost:8000` |
+| API Documentation | `http://localhost:8000/docs` |
+| Frontend | `http://localhost:3000` |
+
+### Manual Setup
+
+```bash
+# Backend
 cd backend
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload
 
-# Run all tests with coverage
+# Frontend (separate terminal)
+cd frontend
+npm install && npm start
+```
+### Testing
+
+```bash
 pytest --cov=app --cov-report=html -v
-
-# Run progression engine tests specifically
-pytest tests/test_progression_engine.py -v
 ```
 ---
 
-## 📁 Project Structure
 
+## Future Development
 
-iron-protocol/
-├── app/
-│   ├── __init__.py
-│   ├── main.py              # FastAPI app + all route definitions
-│   ├── models.py            # SQLAlchemy models (14 tables)
-│   ├── schemas.py           # Pydantic request/response schemas
-│   ├── crud.py              # All business logic + progression engine
-│   ├── database.py          # DB connection + session management
-│   └── utils.py             # JWT helpers, password hashing
-├── tests/
-│   ├── __init__.py
-│   ├── test_progression_engine.py
-│   └── conftest.py
-├── alembic/
-│   └── versions/
-├── frontend/                # React SPA
-│   ├── src/
-│   └── package.json
-├── docker-compose.yml
-├── Dockerfile
-├── requirements.txt
-├── alembic.ini
-└── README.md
-
----
-
-## 🔮 Roadmap
-
-- [x] JWT authentication with refresh tokens
-- [x] Plan builder with day/exercise structure
-- [x] Mesocycle execution with week advancement
+- [x] JWT authentication with token rotation
+- [x] Plan builder with hierarchical day/exercise structure
+- [x] Mesocycle execution with automated week advancement
 - [x] Per-set logging (weight, reps, RPE)
-- [x] 3-signal feedback system (soreness, pump, volume)
+- [x] Three-signal feedback system
 - [x] Adaptive progression engine with decision matrix
-- [x] Per-set shadow targets
-- [x] Set performance evaluation
-- [ ] Exercise library with muscle group categorization
-- [ ] Mesocycle analytics dashboard (volume trends, progression history)
-- [ ] Workout templates marketplace
-- [ ] Mobile-responsive PWA
-- [ ] Data export (CSV / PDF)
-- [ ] Rate limiting and request throttling
+- [x] Per-set shadow target generation
+- [x] Set performance evaluation (closed-loop feedback)
+- [ ] Exercise library with muscle group taxonomy
+- [ ] Analytics dashboard (volume trends, progression history)
+- [ ] Mesocycle comparison and periodization visualization
+- [ ] Progressive Web App (mobile-responsive)
+- [ ] Data export (CSV / PDF training reports)
 
 ---
 
-## 👤 Author
+## Author
 
 **Homayoun Pourattar**
-
 - GitHub: [@Homayounp](https://github.com/Homayounp)
 - Email: H.pourattar@gmail.com
+
+
