@@ -1,134 +1,213 @@
-import React, { useState, useEffect } from "react";
+// frontend/src/App.js
+import React from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  Link,
+  useLocation,
+} from "react-router-dom";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
+import Plans from "./pages/Plans";
+import Mesocycles from "./pages/Mesocycles";
+import Workout from "./pages/Workout";
+import Progress from "./pages/Progress";
+import ExercisePicker from "./pages/ExercisePicker";
 
-const API_BASE = "http://127.0.0.1:8000";
+// ─── Private Route Guard ─────────────────────────────
+function PrivateRoute({ children }) {
+  const { user, loading } = useAuth();
 
-function App() {
-  const [users, setUsers] = useState([]);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
+  if (loading) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+          backgroundColor: "#0a0a0a",
+        }}
+      >
+        <h1
+          style={{
+            fontSize: "2.8rem",
+            fontWeight: "900",
+            color: "#ffffff",
+            letterSpacing: "0.3em",
+            textTransform: "uppercase",
+            marginBottom: "8px",
+          }}
+        >
+          IRON PROTOCOL
+        </h1>
+        <p
+          style={{
+            fontSize: "0.9rem",
+            color: "#666666",
+            letterSpacing: "0.15em",
+            textTransform: "uppercase",
+            fontStyle: "italic",
+            marginBottom: "32px",
+          }}
+        >
+          Systematic destruction. Calculated growth.
+        </p>
+        <div className="loading-spinner" />
+      </div>
+    );
+  }
 
-  const [workouts, setWorkouts] = useState([]);
-  const [wName, setWName] = useState("");
-  const [wDesc, setWDesc] = useState("");
-  const [wSets, setWSets] = useState(3);
-  const [wReps, setWReps] = useState(10);
-  const [wLoad, setWLoad] = useState(20);
+  return user ? children : <Navigate to="/login" />;
+}
 
-  // -----------------------------
-  // USERS
-  // -----------------------------
-  const fetchUsers = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/users/`);
-      const data = await res.json();
-      setUsers(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("fetchUsers error:", error);
-      setUsers([]);
-    }
-  };
+// ─── Navigation Bar ──────────────────────────────────
+function NavBar() {
+  const { user, logout } = useAuth();
+  const location = useLocation();
 
-  const handleCreateUser = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch(`${API_BASE}/users/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      });
-      const data = await res.json();
-      setMessage(`User created: ${data.name}`);
-      setName(""); setEmail(""); setPassword("");
-      fetchUsers();
-    } catch (err) {
-      console.error(err);
-      setMessage("Error creating user");
-    }
-  };
+  if (!user) return null;
 
-  // -----------------------------
-  // WORKOUTS
-  // -----------------------------
-  const fetchWorkouts = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/workouts/`);
-      const data = await res.json();
-      setWorkouts(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error(err);
-      setWorkouts([]);
-    }
-  };
-
-  const handleCreateWorkout = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch(`${API_BASE}/workouts/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: wName,
-          description: wDesc,
-          default_sets: wSets,
-          default_reps: wReps,
-          default_load: wLoad,
-        }),
-      });
-      const data = await res.json();
-      setMessage(`Workout created: ${data.name}`);
-      setWName(""); setWDesc(""); setWSets(3); setWReps(10); setWLoad(20);
-      fetchWorkouts();
-    } catch (err) {
-      console.error(err);
-      setMessage("Error creating workout");
-    }
-  };
-
-  useEffect(() => {
-    fetchUsers();
-    fetchWorkouts();
-  }, []);
+  const navItems = [
+    { path: "/", label: "🏠 Home" },
+    { path: "/plans", label: "📋 Plans" },
+    { path: "/mesocycles", label: "🔄 Mesos" },
+    { path: "/workout", label: "💪 Workout" },
+    { path: "/progress", label: "📊 Progress" },
+  ];
 
   return (
-    <div style={{ padding: "1.5rem", fontFamily: "sans-serif" }}>
-      <h1>🏋️ Workout App (React)</h1>
+    <nav className="navbar">
+      <div
+        className="nav-brand"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          lineHeight: "1.1",
+        }}
+      >
+        <span
+          style={{
+            fontWeight: "900",
+            fontSize: "1.1rem",
+            letterSpacing: "0.25em",
+            color: "#ffffff",
+            textTransform: "uppercase",
+          }}
+        >
+          IRON PROTOCOL
+        </span>
+        <span
+          style={{
+            fontSize: "0.5rem",
+            color: "#555555",
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            fontStyle: "italic",
+          }}
+        >
+          Systematic destruction. Calculated growth.
+        </span>
+      </div>
+      <div className="nav-links">
+        {navItems.map((item) => (
+          <Link
+            key={item.path}
+            to={item.path}
+            className={`nav-link ${
+              location.pathname === item.path ? "active" : ""
+            }`}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </div>
+      <div className="nav-user">
+        <span>{user.name}</span>
+        <button onClick={logout} className="btn-logout">
+          Logout
+        </button>
+      </div>
+    </nav>
+  );
+}
 
-      {/* --- Create User --- */}
-      <form onSubmit={handleCreateUser} style={{ marginBottom: "1rem" }}>
-        <input placeholder="Name" value={name} onChange={e => setName(e.target.value)} required />
-        <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
-        <input placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
-        <button type="submit">Create User</button>
-      </form>
-
-      {/* --- Create Workout --- */}
-      <form onSubmit={handleCreateWorkout} style={{ marginBottom: "1rem" }}>
-        <input placeholder="Workout name" value={wName} onChange={e => setWName(e.target.value)} required />
-        <input placeholder="Description" value={wDesc} onChange={e => setWDesc(e.target.value)} required />
-        <input type="number" placeholder="Sets" value={wSets} onChange={e => setWSets(Number(e.target.value))} />
-        <input type="number" placeholder="Reps" value={wReps} onChange={e => setWReps(Number(e.target.value))} />
-        <input type="number" placeholder="Load" value={wLoad} onChange={e => setWLoad(Number(e.target.value))} />
-        <button type="submit">Create Workout</button>
-      </form>
-
-      <p>{message}</p>
-
-      {/* --- Display Users --- */}
-      <h2>Users</h2>
-      <ul>
-        {Array.isArray(users) && users.length > 0 ? users.map(u => <li key={u.id}>{u.name} — {u.email}</li>) : <li>No users found</li>}
-      </ul>
-
-      {/* --- Display Workouts --- */}
-      <h2>Workouts</h2>
-      <ul>
-        {Array.isArray(workouts) && workouts.length > 0 ? workouts.map(w => (
-          <li key={w.id}>{w.name} — {w.description} — {w.default_sets}x{w.default_reps} @ {w.default_load}kg</li>
-        )) : <li>No workouts found</li>}
-      </ul>
-    </div>
+// ─── App Root ────────────────────────────────────────
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <NavBar />
+        <div className="main-content">
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route
+              path="/"
+              element={
+                <PrivateRoute>
+                  <Dashboard />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/plans"
+              element={
+                <PrivateRoute>
+                  <Plans />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/mesocycles"
+              element={
+                <PrivateRoute>
+                  <Mesocycles />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/workout"
+              element={
+                <PrivateRoute>
+                  <Workout />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/workout/:mesocycleId"
+              element={
+                <PrivateRoute>
+                  <Workout />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/progress"
+              element={
+                <PrivateRoute>
+                  <Progress />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/exercise-picker"
+              element={
+                <PrivateRoute>
+                  <ExercisePicker />
+                </PrivateRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </div>
+      </Router>
+    </AuthProvider>
   );
 }
 
