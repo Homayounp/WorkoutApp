@@ -30,8 +30,9 @@ After every session, you submit three signals — **soreness**, **pump quality**
 The result: **per-set shadow targets**. Exact weight and rep prescriptions for every set, dynamically adjusted week over week.
 
 #### Example Response: Smart Targets
-`GET /mesocycles/{id}/days/{day_id}/smart-targets`json
-
+`GET /mesocycles/{id}/days/{day_id}/smart-targets`
+```
+json
 {
   "mde_id": 12,
   "exercise_name": "Bench Press",
@@ -39,9 +40,24 @@ The result: **per-set shadow targets**. Exact weight and rep prescriptions for e
   "progression_type": "add_weight",
   "reason": "Great pump + good volume + fresh → +2.5kg",
   "set_targets": [
-{"set_number": 1, "target_weight": 82.5, "target_reps": 8, "is_new_set": false},
-{"set_number": 2, "target_weight": 82.5, "target_reps": 8, "is_new_set": false},
-{"set_number": 3, "target_weight": 82.5, "target_reps": 7, "is_new_set": true}
+{
+"set_number": 1, 
+"target_weight": 82.5, 
+"target_reps": 8, 
+"is_new_set": false
+},
+{
+"set_number": 2, 
+"target_weight": 82.5, 
+"target_reps": 8, 
+"is_new_set": false
+},
+{
+"set_number": 3, 
+"target_weight": 82.5, 
+"target_reps": 7, 
+"is_new_set": true
+}
   ]
 }
 
@@ -50,6 +66,7 @@ The result: **per-set shadow targets**. Exact weight and rep prescriptions for e
 ## 🏗️ System Architecture
 
 ### High-Level Design
+```
 mermaid
 graph TD
 Client[React SPA] <-->|HTTP/JSON + JWT| API[FastAPI Backend]
@@ -62,8 +79,9 @@ end
 
 Engine -.->|Decision Matrix Logic| API
 Engine -.->|Shadow Targets| API
-
+```
 ### Data Model Hierarchy
+```
 mermaid
 erDiagram
 User ||--o{ Plan : owns
@@ -76,7 +94,7 @@ MesocycleWeek ||--|{ MesocycleDay : organizes
 MesocycleDay ||--o{ Feedback : "soreness/pump/vol"
 MesocycleDay ||--|{ MesocycleDayExercise : performs
 MesocycleDayExercise ||--|{ SetLog : "weight/reps/rpe"
-
+```
 ---
 
 ## ✨ Features
