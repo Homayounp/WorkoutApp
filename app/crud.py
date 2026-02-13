@@ -4,14 +4,52 @@ from sqlalchemy import func
 from typing import Optional, List, Dict
 from app import models
 from app.utils import hash_password
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PROGRESSION ENGINE CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Weight progression
+WEEKLY_WEIGHT_INCREMENT_PCT = 0.025   # 2.5% target weekly increase
+MIN_BARBELL_INCREMENT_KG = 2.5        # Smallest barbell plate jump
+MIN_DUMBBELL_INCREMENT_KG = 2.0       # Smallest dumbbell jump
+
+# Standard dumbbell weights available in most gyms (in kg)
+DUMBBELL_WEIGHTS_KG = [
+    2, 4, 5, 6, 7.5, 8, 10, 12, 12.5, 14, 15, 16, 17.5, 20,
+    22.5, 25, 27.5, 30, 32.5, 35, 37.5, 40, 42.5, 45, 47.5, 50,
+    52.5, 55, 57.5, 60
+]
+
+# Rep ranges for hypertrophy
+DEFAULT_REP_FLOOR = 8
+DEFAULT_REP_CEILING = 12
+ABSOLUTE_REP_CAP = 20  # Never prescribe more than this
+
+# Volume limits
+MIN_SETS_PER_EXERCISE = 2
+MAX_SETS_PER_EXERCISE = 6
+
+# Feedback thresholds
+SORENESS_OVERTRAINED_THRESHOLD = 2.5
+SORENESS_UNDER_RECOVERED_THRESHOLD = 1.5
+SORENESS_FULLY_RECOVERED_THRESHOLD = 0.5
+
+DELOAD_WEIGHT_REDUCTION = 0.10  # 10% weight reduction on deload
+
+
 # ═══════════════════════════════════════════════════════
 # USERS
 # ═══════════════════════════════════════════════════════
+
 def get_user_by_email(db: Session, email: str):
     return db.query(models.User).filter(models.User.email == email).first()
 
+
 def get_user_by_id(db: Session, user_id: int):
     return db.query(models.User).filter(models.User.id == user_id).first()
+
 
 def create_user(db: Session, name: str, email: str, password: str):
     hashed = hash_password(password)
@@ -21,9 +59,11 @@ def create_user(db: Session, name: str, email: str, password: str):
     db.refresh(db_user)
     return db_user
 
+
 # ═══════════════════════════════════════════════════════
 # EXERCISES (read-only after CSV import)
 # ═══════════════════════════════════════════════════════
+
 def get_exercises(db: Session, skip: int = 0, limit: int = 50,
                   body_part: str | None = None, target: str | None = None,
                   search: str | None = None):
@@ -36,12 +76,15 @@ def get_exercises(db: Session, skip: int = 0, limit: int = 50,
         q = q.filter(models.Exercise.name.ilike(f"%{search}%"))
     return q.order_by(models.Exercise.name).offset(skip).limit(limit).all()
 
+
 def get_exercise_by_id(db: Session, exercise_id: int):
     return db.query(models.Exercise).filter(models.Exercise.id == exercise_id).first()
+
 
 # ═══════════════════════════════════════════════════════
 # PLANS (Static Template)
 # ═══════════════════════════════════════════════════════
+
 def create_plan(db: Session, user_id: int, name: str, days_data: list):
     plan = models.Plan(user_id=user_id, name=name)
     db.add(plan)
@@ -63,6 +106,7 @@ def create_plan(db: Session, user_id: int, name: str, days_data: list):
     db.refresh(plan)
     return plan
 
+
 def get_plans(db: Session, user_id: int):
     return (
         db.query(models.Plan)
@@ -75,6 +119,7 @@ def get_plans(db: Session, user_id: int):
         .all()
     )
 
+
 def get_plan_by_id(db: Session, plan_id: int, user_id: int):
     return (
         db.query(models.Plan)
@@ -86,6 +131,7 @@ def get_plan_by_id(db: Session, plan_id: int, user_id: int):
         )
         .first()
     )
+
 
 def delete_plan(db: Session, plan_id: int, user_id: int):
     plan = db.query(models.Plan).filter(
@@ -103,9 +149,11 @@ def delete_plan(db: Session, plan_id: int, user_id: int):
     db.commit()
     return True
 
+
 # ═══════════════════════════════════════════════════════
 # MESOCYCLE (Execution Layer)
 # ═══════════════════════════════════════════════════════
+
 def start_mesocycle(db: Session, user_id: int, plan_id: int, name: str):
     plan = get_plan_by_id(db, plan_id, user_id)
     if not plan:
@@ -141,6 +189,7 @@ def start_mesocycle(db: Session, user_id: int, plan_id: int, name: str):
     db.refresh(meso)
     return meso
 
+
 def get_mesocycles(db: Session, user_id: int):
     return (
         db.query(models.Mesocycle)
@@ -148,6 +197,7 @@ def get_mesocycles(db: Session, user_id: int):
         .order_by(models.Mesocycle.started_at.desc())
         .all()
     )
+
 
 def get_mesocycle_detail(db: Session, mesocycle_id: int, user_id: int):
     return (
@@ -172,6 +222,7 @@ def get_mesocycle_detail(db: Session, mesocycle_id: int, user_id: int):
         .first()
     )
 
+
 def delete_mesocycle(db: Session, mesocycle_id: int, user_id: int):
     meso = db.query(models.Mesocycle).filter(
         models.Mesocycle.id == mesocycle_id,
@@ -182,6 +233,7 @@ def delete_mesocycle(db: Session, mesocycle_id: int, user_id: int):
     db.delete(meso)
     db.commit()
     return True
+
 
 def get_current_workout(db: Session, mesocycle_id: int, user_id: int):
     meso = (
@@ -222,9 +274,11 @@ def get_current_workout(db: Session, mesocycle_id: int, user_id: int):
     )
     return day
 
+
 # ═══════════════════════════════════════════════════════
 # SET LOGGING
 # ═══════════════════════════════════════════════════════
+
 def log_set(db: Session, meso_day_exercise_id: int, set_number: int,
             weight: float, reps: int):
     # Check if set already exists (update instead of duplicate)
@@ -250,6 +304,7 @@ def log_set(db: Session, meso_day_exercise_id: int, set_number: int,
     db.refresh(sl)
     return sl
 
+
 def skip_sets(db: Session, meso_day_exercise_id: int, from_set: int, to_set: int):
     """Mark sets as skipped by logging them with weight=0, reps=0."""
     results = []
@@ -271,6 +326,7 @@ def skip_sets(db: Session, meso_day_exercise_id: int, from_set: int, to_set: int
     db.commit()
     return results
 
+
 def add_set_to_exercise(db: Session, meso_day_exercise_id: int):
     """Increase prescribed_sets by 1."""
     mde = db.query(models.MesocycleDayExercise).filter(
@@ -283,9 +339,11 @@ def add_set_to_exercise(db: Session, meso_day_exercise_id: int):
     db.refresh(mde)
     return mde
 
+
 # ═══════════════════════════════════════════════════════
 # EXERCISE NOTES
 # ═══════════════════════════════════════════════════════
+
 def save_exercise_note(db: Session, meso_day_exercise_id: int, note: str):
     mde = db.query(models.MesocycleDayExercise).filter(
         models.MesocycleDayExercise.id == meso_day_exercise_id
@@ -297,9 +355,11 @@ def save_exercise_note(db: Session, meso_day_exercise_id: int, note: str):
     db.refresh(mde)
     return mde
 
+
 # ═══════════════════════════════════════════════════════
 # EXERCISE HISTORY
 # ═══════════════════════════════════════════════════════
+
 def get_exercise_history(db: Session, exercise_id: int, user_id: int, limit: int = 10):
     rows = (
         db.query(models.MesocycleDayExercise)
@@ -342,9 +402,11 @@ def get_exercise_history(db: Session, exercise_id: int, user_id: int, limit: int
 
     return history
 
+
 # ═══════════════════════════════════════════════════════
 # AUTOFILL
 # ═══════════════════════════════════════════════════════
+
 def get_last_weight_for_exercise(db: Session, exercise_id: int, user_id: int):
     row = (
         db.query(models.SetLog)
@@ -364,9 +426,11 @@ def get_last_weight_for_exercise(db: Session, exercise_id: int, user_id: int):
         return {"weight": row.weight, "reps": row.reps}
     return None
 
+
 # ═══════════════════════════════════════════════════════
 # FEEDBACK
 # ═══════════════════════════════════════════════════════
+
 def create_feedback(db: Session, meso_day_id: int, muscle_group: str,
                     soreness: str, pump: str, volume_feeling: str,
                     notes: str | None = None):
@@ -396,15 +460,18 @@ def create_feedback(db: Session, meso_day_id: int, muscle_group: str,
     db.refresh(fb)
     return fb
 
+
 # ═══════════════════════════════════════════════════════
 # COMPLETE DAY & PER-DAY PROGRESSION (existing)
 # ═══════════════════════════════════════════════════════
+
 def complete_day(db: Session, meso_day_id: int):
     day = db.query(models.MesocycleDay).filter(models.MesocycleDay.id == meso_day_id).first()
     if day:
         day.is_completed = True
         db.commit()
     return day
+
 
 def calculate_progression(db: Session, meso_day_id: int):
     day = (
@@ -457,6 +524,7 @@ def calculate_progression(db: Session, meso_day_id: int):
         })
 
     return recommendations
+
 
 def apply_progression_to_next_week(db: Session, mesocycle_id: int, user_id: int):
     meso = (
@@ -525,9 +593,11 @@ def apply_progression_to_next_week(db: Session, mesocycle_id: int, user_id: int)
     db.refresh(meso)
     return meso
 
+
 # ═══════════════════════════════════════════════════════
 # FEEDBACK-DRIVEN PROGRESSION (Week-Level Intelligence)
 # ═══════════════════════════════════════════════════════
+
 def calculate_feedback_driven_progression(db: Session, mesocycle_id: int, user_id: int):
     """
     Analyze ALL feedback from the current week across ALL days,
@@ -744,142 +814,416 @@ def apply_feedback_progression(db: Session, mesocycle_id: int, user_id: int, dec
     if not next_week:
         return None
 
-    delta_map = {d["muscle_group"]: d["delta"] for d in decisions}
-    adjustments_made = 0
+    # Build a map: muscle_group → delta
+    delta_map = {}
+    for d in decisions:
+        delta_map[d["muscle_group"]] = d["delta"]
 
+    adjustments = 0
     for day in next_week.days:
-        muscle_exercises: dict[str, list] = {}
         for mde in day.exercises:
             group = mde.exercise.body_part
-            if group not in muscle_exercises:
-                muscle_exercises[group] = []
-            muscle_exercises[group].append(mde)
-
-        for group, exercises in muscle_exercises.items():
-            total_delta = delta_map.get(group, 0)
-            if total_delta == 0:
-                continue
-
-            n_exercises = len(exercises)
-            base_change = total_delta // n_exercises
-            remainder = abs(total_delta) % n_exercises
-
-            for i, mde in enumerate(exercises):
-                if total_delta > 0:
-                    adjustment = base_change + (1 if i < remainder else 0)
-                else:
-                    adjustment = base_change - (1 if i < remainder else 0)
-
-                new_sets = max(1, mde.prescribed_sets + adjustment)
+            delta = delta_map.get(group, 0)
+            if delta != 0:
+                # Distribute delta across exercises for this muscle group
+                # For simplicity, apply delta to each exercise (clamped)
+                new_sets = max(MIN_SETS_PER_EXERCISE, min(MAX_SETS_PER_EXERCISE,
+                               mde.prescribed_sets + delta))
                 if new_sets != mde.prescribed_sets:
                     mde.prescribed_sets = new_sets
-                    adjustments_made += 1
+                    adjustments += 1
 
     db.commit()
-    return adjustments_made
+    return adjustments
 
 
-# ═══════════════════════════════════════════════════════
-# SMART PROGRESSION ENGINE
-# ═══════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+# PROGRESSION ENGINE — HELPER FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════
 
-def _get_previous_session_feedback(db: Session, mesocycle_id: int, 
-                                     muscle_group: str, current_week: int):
+def classify_recovery_state(avg_soreness: float) -> str:
     """
-    Get feedback from the PREVIOUS week's session that trained this muscle group.
-    Returns the Feedback object or None.
-    """
-    if current_week <= 1:
-        return None
+    Classify recovery state based on average soreness score (0-3 scale).
 
-    prev_week = (
-        db.query(models.MesocycleWeek)
-        .filter(
-            models.MesocycleWeek.mesocycle_id == mesocycle_id,
-            models.MesocycleWeek.week_number == current_week - 1,
+    Returns one of:
+        'overtrained'       — soreness >= 2.5 → deload
+        'under_recovered'   — soreness >= 1.5 → maintain, no progression
+        'mostly_recovered'  — soreness >= 0.5 → normal progression
+        'fully_recovered'   — soreness < 0.5  → aggressive progression OK
+    """
+    if avg_soreness >= SORENESS_OVERTRAINED_THRESHOLD:
+        return "overtrained"
+    elif avg_soreness >= SORENESS_UNDER_RECOVERED_THRESHOLD:
+        return "under_recovered"
+    elif avg_soreness >= SORENESS_FULLY_RECOVERED_THRESHOLD:
+        return "mostly_recovered"
+    else:
+        return "fully_recovered"
+
+
+def classify_stimulus_quality(avg_pump: float, avg_volume_feeling: float) -> str:
+    """
+    Classify training stimulus quality based on pump and volume perception.
+
+    Args:
+        avg_pump: 0-3 scale (none=0, light=1, moderate=2, great=3)
+        avg_volume_feeling: -1 to +1 scale (too_little=-1, just_right=0, too_much=+1)
+
+    Returns one of: 'insufficient', 'optimal', 'excessive'
+    """
+    # Normalize pump to 0-1 range
+    pump_normalized = avg_pump / 3.0
+
+    # Normalize volume feeling to 0-1 range
+    volume_normalized = (avg_volume_feeling + 1) / 2.0
+
+    # Combined stimulus score: pump dominates, volume feeling modulates
+    # Range: 0 (no stimulus at all) → ~1.5 (maximum stimulus)
+    stimulus_score = pump_normalized + (volume_normalized * 0.5)
+
+    if stimulus_score < 0.5:
+        return "insufficient"
+    elif stimulus_score <= 1.0:
+        return "optimal"
+    else:
+        return "excessive"
+
+
+def is_dumbbell_exercise(exercise_name: str, equipment: str | None = None) -> bool:
+    """
+    Determine if an exercise uses dumbbells.
+
+    Checks the equipment field first (from Exercise model), then falls back
+    to heuristic name matching.
+
+    Args:
+        exercise_name: The exercise name string
+        equipment: The equipment field from the Exercise model (if available)
+
+    Returns:
+        True if the exercise uses dumbbells
+    """
+    # Check equipment field first (most reliable)
+    if equipment:
+        eq_lower = equipment.lower()
+        if "dumbbell" in eq_lower or "db" in eq_lower:
+            return True
+        # If equipment explicitly says barbell/machine/cable, it's not dumbbell
+        if any(kw in eq_lower for kw in ["barbell", "machine", "cable", "smith",
+                                          "body weight", "bodyweight", "band"]):
+            return False
+
+    # Fall back to name heuristic
+    dumbbell_keywords = [
+        'dumbbell', 'db ', 'db_', 'd.b.',
+        'lateral raise', 'fly', 'flye',
+        'concentration curl', 'hammer curl', 'kickback',
+    ]
+    name_lower = exercise_name.lower()
+    return any(kw in name_lower for kw in dumbbell_keywords)
+
+
+def get_next_available_weight(
+    current_weight: float,
+    is_dumbbell: bool,
+    target_increment_pct: float = WEEKLY_WEIGHT_INCREMENT_PCT
+) -> tuple:
+    """
+    Calculate the next available weight, respecting equipment constraints.
+
+    For dumbbells: snaps to the next available standard weight.
+    For barbells/machines: rounds to the nearest 2.5kg increment.
+
+    Args:
+        current_weight: Current working weight in kg
+        is_dumbbell: Whether this exercise uses dumbbells
+        target_increment_pct: Target percentage increase (default 2.5%)
+
+    Returns:
+        (next_weight: float, can_achieve: bool, reason: str)
+        - next_weight: the weight to prescribe
+        - can_achieve: True if this weight increase is reasonable
+        - reason: human-readable explanation
+    """
+    if current_weight <= 0:
+        return (current_weight, False, "No prior weight data")
+
+    target_increment = current_weight * target_increment_pct
+    target_weight = current_weight + target_increment
+
+    if is_dumbbell:
+        # Find the smallest dumbbell weight >= target_weight
+        available_weights = [w for w in DUMBBELL_WEIGHTS_KG if w >= target_weight]
+
+        if not available_weights:
+            return (current_weight, False, "At maximum dumbbell weight")
+
+        next_weight = available_weights[0]
+        actual_increment = next_weight - current_weight
+
+        # Safety: if the jump is 0 (already at a dumbbell weight above target)
+        if actual_increment <= 0:
+            # Current weight is already above target, find strictly next
+            strictly_above = [w for w in DUMBBELL_WEIGHTS_KG if w > current_weight]
+            if strictly_above:
+                next_weight = strictly_above[0]
+                actual_increment = next_weight - current_weight
+            else:
+                return (current_weight, False, "At maximum dumbbell weight")
+
+        actual_increment_pct = actual_increment / current_weight
+
+        # If the jump exceeds 2.5× the target percentage, it's too aggressive
+        max_acceptable_pct = target_increment_pct * 2.5
+        if actual_increment_pct > max_acceptable_pct:
+            return (
+                current_weight,
+                False,
+                f"Next dumbbell ({next_weight}kg) requires {actual_increment_pct:.1%} "
+                f"increase, exceeds safe threshold of {max_acceptable_pct:.1%}"
+            )
+
+        return (
+            next_weight,
+            True,
+            f"Progressing to {next_weight}kg dumbbell "
+            f"({actual_increment_pct:.1%} increase)"
         )
-        .first()
-    )
-    if not prev_week:
-        return None
 
-    # Find a completed day in previous week that has feedback for this muscle group
-    prev_days = (
-        db.query(models.MesocycleDay)
-        .filter(
-            models.MesocycleDay.week_id == prev_week.id,
-            models.MesocycleDay.is_completed == True,
+    else:
+        # Barbell / machine: round to nearest 2.5kg increment
+        increments_needed = round(target_increment / MIN_BARBELL_INCREMENT_KG)
+        increments_needed = max(1, increments_needed)
+        next_weight = current_weight + (increments_needed * MIN_BARBELL_INCREMENT_KG)
+
+        actual_increment_pct = (next_weight - current_weight) / current_weight
+
+        max_acceptable_pct = target_increment_pct * 2.5
+        if actual_increment_pct > max_acceptable_pct:
+            return (
+                current_weight,
+                False,
+                f"Weight jump of {actual_increment_pct:.1%} exceeds "
+                f"safe threshold of {max_acceptable_pct:.1%}"
+            )
+
+        return (
+            round(next_weight, 1),
+            True,
+            f"Progressing to {next_weight}kg ({actual_increment_pct:.1%} increase)"
         )
-        .options(joinedload(models.MesocycleDay.feedbacks))
-        .all()
+
+
+def calculate_set_target(
+    last_weight: float,
+    last_reps: int,
+    is_dumbbell: bool,
+    recovery_state: str,
+    stimulus_quality: str,
+    rep_floor: int = DEFAULT_REP_FLOOR,
+    rep_ceiling: int = DEFAULT_REP_CEILING
+) -> dict:
+    """
+    Calculate the target weight and reps for a SINGLE set using double progression.
+
+    Double Progression Logic:
+        1. If recovery is bad → deload (reduce weight) or hold
+        2. Try to increase weight by ~2.5%
+        3. If weight jump is too large for equipment → increase reps instead
+        4. If reps are at ceiling → force the weight jump, reset reps to floor
+
+    Args:
+        last_weight: Weight used in the last session for this set
+        last_reps: Reps completed in the last session for this set
+        is_dumbbell: Whether exercise uses dumbbells (affects weight rounding)
+        recovery_state: One of 'overtrained', 'under_recovered',
+                        'mostly_recovered', 'fully_recovered'
+        stimulus_quality: One of 'insufficient', 'optimal', 'excessive'
+        rep_floor: Lower bound of target rep range (default 8)
+        rep_ceiling: Upper bound of target rep range (default 12)
+
+    Returns:
+        {
+            "target_weight": float,
+            "target_reps": int,
+            "action": str,       # one of: deload, maintain, increase_weight,
+                                 #         increase_reps, force_weight_increase, initialize
+            "reason": str        # human-readable explanation
+        }
+    """
+    # ── Handle missing data ──
+    if last_weight <= 0 or last_reps <= 0:
+        return {
+            "target_weight": last_weight,
+            "target_reps": rep_floor,
+            "action": "initialize",
+            "reason": "No prior data — using defaults"
+        }
+
+    # ═══════════════════════════════════════════════════
+    # Priority 1: Handle poor recovery → SAFETY FIRST
+    # ═══════════════════════════════════════════════════
+    if recovery_state == "overtrained":
+        deload_weight = round(last_weight * (1 - DELOAD_WEIGHT_REDUCTION), 1)
+
+        # Snap to valid equipment weight
+        if is_dumbbell:
+            valid_below = [w for w in DUMBBELL_WEIGHTS_KG if w <= deload_weight]
+            if valid_below:
+                deload_weight = valid_below[-1]  # Largest dumbbell <= deload target
+        else:
+            # Round down to nearest 2.5kg
+            deload_weight = (deload_weight // MIN_BARBELL_INCREMENT_KG) * MIN_BARBELL_INCREMENT_KG
+            deload_weight = round(deload_weight, 1)
+
+        return {
+            "target_weight": deload_weight,
+            "target_reps": rep_floor,
+            "action": "deload",
+            "reason": (
+                f"Overtrained — deloading weight by {DELOAD_WEIGHT_REDUCTION:.0%} "
+                f"({last_weight}→{deload_weight}kg) and resetting reps to {rep_floor}"
+            )
+        }
+
+    if recovery_state == "under_recovered":
+        return {
+            "target_weight": last_weight,
+            "target_reps": last_reps,
+            "action": "maintain",
+            "reason": (
+                "Under-recovered — maintaining current prescription "
+                f"({last_weight}kg × {last_reps}) to allow adaptation"
+            )
+        }
+
+    # ═══════════════════════════════════════════════════
+    # Priority 2: Try weight increase (~2.5% weekly)
+    # ═══════════════════════════════════════════════════
+    next_weight, can_achieve, weight_reason = get_next_available_weight(
+        last_weight, is_dumbbell
     )
 
-    for day in prev_days:
-        for fb in day.feedbacks:
-            if fb.muscle_group.lower() == muscle_group.lower():
-                return fb
+    if can_achieve:
+        # Weight increase is achievable — apply it
+        # When weight goes up, allow reps to drop by 1 to accommodate
+        new_reps = last_reps
+        if last_reps > rep_floor + 1:
+            new_reps = max(rep_floor, last_reps - 1)
 
-    return None
+        return {
+            "target_weight": next_weight,
+            "target_reps": new_reps,
+            "action": "increase_weight",
+            "reason": (
+                f"{weight_reason}. "
+                f"Reps adjusted to {new_reps} to accommodate heavier load."
+            )
+        }
+
+    # ═══════════════════════════════════════════════════
+    # Priority 3: Can't increase weight → try adding reps
+    # ═══════════════════════════════════════════════════
+    if last_reps < rep_ceiling:
+        new_reps = last_reps + 1
+        return {
+            "target_weight": last_weight,
+            "target_reps": new_reps,
+            "action": "increase_reps",
+            "reason": (
+                f"Weight increment not achievable ({weight_reason}). "
+                f"Adding 1 rep ({last_reps}→{new_reps}) at {last_weight}kg instead."
+            )
+        }
+
+    # ═══════════════════════════════════════════════════
+    # Priority 4: Reps at ceiling → FORCE weight jump
+    # ═══════════════════════════════════════════════════
+    if last_reps >= rep_ceiling:
+        if is_dumbbell:
+            available_weights = [w for w in DUMBBELL_WEIGHTS_KG if w > last_weight]
+            if available_weights:
+                forced_weight = available_weights[0]
+            else:
+                forced_weight = last_weight + MIN_DUMBBELL_INCREMENT_KG
+        else:
+            forced_weight = last_weight + MIN_BARBELL_INCREMENT_KG
+
+        return {
+            "target_weight": round(forced_weight, 1),
+            "target_reps": rep_floor,
+            "action": "force_weight_increase",
+            "reason": (
+                f"Reps hit ceiling ({rep_ceiling}). Forcing weight increase to "
+                f"{forced_weight}kg and resetting reps to {rep_floor}. "
+                f"This is the double progression reset point."
+            )
+        }
+
+    # ═══════════════════════════════════════════════════
+    # Fallback: maintain (should rarely reach here)
+    # ═══════════════════════════════════════════════════
+    return {
+        "target_weight": last_weight,
+        "target_reps": last_reps,
+        "action": "maintain",
+        "reason": "No progression criteria met — maintaining current prescription"
+    }
 
 
-def _get_previous_session_sets(db: Session, mesocycle_id: int,
-                                 exercise_id: int, current_week: int):
+# ═══════════════════════════════════════════════════════════════════════════
+# SMART PROGRESSION — THE BRAIN
+# ═══════════════════════════════════════════════════════════════════════════
+
+def calculate_smart_progression(
+    db: Session,
+    meso_day_id: int,
+    soreness_overrides: dict | None = None
+) -> list:
     """
-    Get the set logs from the PREVIOUS week for this exercise.
-    Returns list of SetLog objects sorted by set_number.
+    Calculate smart progression targets for ALL exercises in a workout day.
+
+    This is the main entry point called by the API. It combines:
+    1. Historical performance data (last completed sets)
+    2. Biofeedback signals (soreness, pump, volume perception)
+    3. Equipment-aware weight rounding (dumbbell vs barbell)
+    4. Double progression logic (weight → reps → force weight at ceiling)
+
+    Args:
+        db: Database session
+        meso_day_id: The MesocycleDay ID to generate targets for
+        soreness_overrides: Optional dict of {"muscle_group": "soreness_level"}
+                           to override stored feedback (for pre-workout input)
+
+    Returns:
+        List of per-exercise target dictionaries:
+        [
+            {
+                "mde_id": int,
+                "exercise_id": int,
+                "exercise_name": str,
+                "muscle_group": str,
+                "equipment": str,
+                "is_dumbbell": bool,
+                "prescribed_sets": int,
+                "recovery_state": str,
+                "stimulus_quality": str,
+                "set_targets": [
+                    {
+                        "set_number": int,
+                        "target_weight": float,
+                        "target_reps": int,
+                        "action": str,
+                        "reason": str,
+                        "source": str   # "history" | "autofill" | "no_data"
+                    },
+                    ...
+                ]
+            },
+            ...
+        ]
     """
-    if current_week <= 1:
-        return []
-
-    prev_week = (
-        db.query(models.MesocycleWeek)
-        .filter(
-            models.MesocycleWeek.mesocycle_id == mesocycle_id,
-            models.MesocycleWeek.week_number == current_week - 1,
-        )
-        .first()
-    )
-    if not prev_week:
-        return []
-
-    prev_mde = (
-        db.query(models.MesocycleDayExercise)
-        .join(models.MesocycleDay)
-        .filter(
-            models.MesocycleDay.week_id == prev_week.id,
-            models.MesocycleDayExercise.exercise_id == exercise_id,
-        )
-        .options(joinedload(models.MesocycleDayExercise.set_logs))
-        .first()
-    )
-    if not prev_mde:
-        return []
-
-    return sorted(prev_mde.set_logs, key=lambda s: s.set_number)
-
-
-def calculate_smart_progression(db: Session, meso_day_id: int):
-    """
-    The Iron Protocol Progression Engine.
-    
-    Cross-references TODAY's soreness with LAST SESSION's pump + volume_feeling
-    to determine the exact progression type per muscle group, then generates
-    per-set targets (shadow text values) for every exercise.
-    
-    Decision Matrix:
-    ┌─────────────────────┬──────────────────────┬────────────────────────┬──────────────┐
-    │ Today Soreness      │ Last Pump            │ Last Volume            │ Action       │
-    ├─────────────────────┼──────────────────────┼────────────────────────┼──────────────┤
-    │ severe              │ any                  │ too_much               │ DELOAD       │
-    │ severe/moderate     │ any                  │ too_little/just_right  │ +REPS only   │
-    │ none/light          │ moderate/great       │ just_right             │ +SET         │
-    │ none/light          │ great                │ too_little             │ +SET +REPS   │
-    │ none/light          │ none/light           │ just_right             │ +REPS        │
-    │ none/light          │ none/light           │ too_little             │ +WEIGHT      │
-    │ light               │ great                │ just_right             │ +REPS        │
-    │ any                 │ any                  │ too_much               │ MAINTAIN     │
-    └─────────────────────┴──────────────────────┴────────────────────────┴──────────────┘
-    """
+    # ── Load the workout day with all related data ──
     day = (
         db.query(models.MesocycleDay)
         .filter(models.MesocycleDay.id == meso_day_id)
@@ -894,630 +1238,306 @@ def calculate_smart_progression(db: Session, meso_day_id: int):
         )
         .first()
     )
+
     if not day:
         return []
 
-    meso = day.week.mesocycle
-    current_week = day.week.week_number
+    # Get user_id through the relationship chain
+    user_id = day.week.mesocycle.user_id if day.week and day.week.mesocycle else None
 
-    # Build today's soreness map from feedbacks already submitted today
-    today_soreness_map = {}
+    # ── Build feedback map for this day's muscle groups ──
+    # Scoring maps
+    soreness_scores = {"none": 0, "light": 1, "moderate": 2, "severe": 3}
+    pump_scores = {"none": 0, "light": 1, "moderate": 2, "great": 3}
+    volume_scores = {"too_little": -1, "just_right": 0, "too_much": 1}
+
+    def _enum_val(field):
+        return field.value if hasattr(field, 'value') else str(field)
+
+    # Aggregate feedback per muscle group from THIS day
+    muscle_fb: dict[str, dict] = {}
     for fb in day.feedbacks:
-        today_soreness_map[fb.muscle_group.lower()] = fb.soreness
+        group = fb.muscle_group.lower()
+        soreness_val = soreness_scores.get(_enum_val(fb.soreness), 1)
+        pump_val = pump_scores.get(_enum_val(fb.pump), 1.5)
+        volume_val = volume_scores.get(_enum_val(fb.volume_feeling), 0)
 
-    # Group exercises by muscle group
-    muscle_groups = {}
-    for mde in day.exercises:
-        target = mde.exercise.target.lower()
-        if target not in muscle_groups:
-            muscle_groups[target] = []
-        muscle_groups[target].append(mde)
+        if group not in muscle_fb:
+            muscle_fb[group] = {"soreness": [], "pump": [], "volume": []}
+        muscle_fb[group]["soreness"].append(soreness_val)
+        muscle_fb[group]["pump"].append(pump_val)
+        muscle_fb[group]["volume"].append(volume_val)
 
-    targets = []
+    # Apply soreness overrides if provided (pre-workout user input)
+    if soreness_overrides:
+        for group, level in soreness_overrides.items():
+            group_lower = group.lower()
+            override_score = soreness_scores.get(level.lower(), 1)
+            if group_lower not in muscle_fb:
+                muscle_fb[group_lower] = {"soreness": [], "pump": [], "volume": []}
+            # Override replaces all previous soreness readings
+            muscle_fb[group_lower]["soreness"] = [override_score]
 
-    for muscle_group, exercises in muscle_groups.items():
-        # ─── Gather signals ─────────────────────────
-        today_soreness = today_soreness_map.get(muscle_group)
-        prev_feedback = _get_previous_session_feedback(
-            db, meso.id, muscle_group, current_week
-        )
+    # Also check feedback from PREVIOUS days in the same week
+    # (important for recovery assessment)
+    if day.week:
+        for sibling_day in day.week.days:
+            if sibling_day.id == day.id:
+                continue  # Skip current day
+            if not sibling_day.is_completed:
+                continue  # Only use completed days
 
-        # Soreness classification
-        soreness_str = today_soreness
-        if hasattr(today_soreness, 'value'):
-            soreness_str = today_soreness.value
-        high_soreness = soreness_str in ("moderate", "severe")
-        severe_soreness = soreness_str == "severe"
-        low_soreness = soreness_str in ("none", "light", None)
+            # Lazy-load feedbacks for sibling days
+            sibling_feedbacks = (
+                db.query(models.Feedback)
+                .filter(models.Feedback.meso_day_id == sibling_day.id)
+                .all()
+            )
+            for fb in sibling_feedbacks:
+                group = fb.muscle_group.lower()
+                soreness_val = soreness_scores.get(_enum_val(fb.soreness), 1)
+                pump_val = pump_scores.get(_enum_val(fb.pump), 1.5)
+                volume_val = volume_scores.get(_enum_val(fb.volume_feeling), 0)
 
-        # Previous session signals (default to neutral if week 1)
-        if prev_feedback:
-            prev_pump = prev_feedback.pump
-            if hasattr(prev_pump, 'value'):
-                prev_pump = prev_pump.value
-            prev_volume = prev_feedback.volume_feeling
-            if hasattr(prev_volume, 'value'):
-                prev_volume = prev_volume.value
+                if group not in muscle_fb:
+                    muscle_fb[group] = {"soreness": [], "pump": [], "volume": []}
+                muscle_fb[group]["soreness"].append(soreness_val)
+                muscle_fb[group]["pump"].append(pump_val)
+                muscle_fb[group]["volume"].append(volume_val)
+
+    # ── Process each exercise ──
+    results = []
+
+    for mde in sorted(day.exercises, key=lambda e: e.exercise_order):
+        exercise = mde.exercise
+        exercise_name = exercise.name if exercise else "Unknown"
+        muscle_group = (exercise.target or exercise.body_part or "unknown").lower()
+        equipment = exercise.equipment if exercise else None
+
+        # Determine equipment type
+        is_db = is_dumbbell_exercise(exercise_name, equipment)
+
+        # ── Get recovery & stimulus classification for this muscle group ──
+        fb_data = muscle_fb.get(muscle_group, None)
+
+        if fb_data and fb_data["soreness"]:
+            avg_soreness = sum(fb_data["soreness"]) / len(fb_data["soreness"])
         else:
-            prev_pump = "moderate"       # neutral default for week 1
-            prev_volume = "just_right"   # neutral default for week 1
+            avg_soreness = 1.0  # Default: moderate assumption
 
-        good_pump = prev_pump in ("moderate", "great")
-        great_pump = prev_pump == "great"
-        weak_pump = prev_pump in ("none", "light")
-        vol_ok = prev_volume == "just_right"
-        vol_low = prev_volume == "too_little"
-        vol_high = prev_volume == "too_much"
-
-        # ─── Decision Matrix ────────────────────────
-        if severe_soreness and vol_high:
-            progression_type = "deload"
-            reason = "Severe soreness + last session felt too much → deload to recover"
-            rep_delta = -2
-            add_new_set = False
-            weight_bump = 0
-        elif high_soreness and (vol_low or vol_ok):
-            progression_type = "add_reps"
-            reason = "High soreness but volume wasn't excessive → add reps only, no extra set"
-            rep_delta = 1
-            add_new_set = False
-            weight_bump = 0
-        elif high_soreness and vol_high:
-            progression_type = "maintain"
-            reason = "High soreness + volume was too much → maintain current, let body adapt"
-            rep_delta = 0
-            add_new_set = False
-            weight_bump = 0
-        elif low_soreness and good_pump and vol_ok:
-            progression_type = "add_set"
-            reason = "Low soreness + good pump + volume was right → add a set for overload"
-            rep_delta = 0
-            add_new_set = True
-            weight_bump = 0
-        elif low_soreness and great_pump and vol_low:
-            progression_type = "add_set"
-            reason = "Low soreness + great pump + volume felt low → add set + bump reps"
-            rep_delta = 1
-            add_new_set = True
-            weight_bump = 0
-        elif low_soreness and weak_pump and vol_ok:
-            progression_type = "add_reps"
-            reason = "Low soreness + weak pump + volume OK → add reps to drive more stimulus"
-            rep_delta = 2
-            add_new_set = False
-            weight_bump = 0
-        elif low_soreness and weak_pump and vol_low:
-            progression_type = "add_weight"
-            reason = "Low soreness + weak pump + felt too easy → bump weight for intensity"
-            rep_delta = 0
-            add_new_set = False
-            weight_bump = 2.5  # kg increment
-        elif low_soreness and good_pump and vol_high:
-            progression_type = "maintain"
-            reason = "Low soreness but volume felt high → maintain, adaptation in progress"
-            rep_delta = 0
-            add_new_set = False
-            weight_bump = 0
+        if fb_data and fb_data["pump"]:
+            avg_pump = sum(fb_data["pump"]) / len(fb_data["pump"])
         else:
-            # Default: light soreness + great pump + vol ok → add reps
-            progression_type = "add_reps"
-            reason = "Good recovery + solid pump → progressive overload via reps"
-            rep_delta = 1
-            add_new_set = False
-            weight_bump = 0
+            avg_pump = 1.5  # Default: moderate assumption
 
-        # ─── Generate per-exercise targets ──────────
-        for mde in exercises:
-            prev_sets = _get_previous_session_sets(
-                db, meso.id, mde.exercise_id, current_week
+        if fb_data and fb_data["volume"]:
+            avg_volume = sum(fb_data["volume"]) / len(fb_data["volume"])
+        else:
+            avg_volume = 0.0  # Default: just right
+
+        recovery_state = classify_recovery_state(avg_soreness)
+        stimulus_quality = classify_stimulus_quality(avg_pump, avg_volume)
+
+        # ── Get previous session data for this exercise ──
+        # Find the most recent completed occurrence of this exercise for this user
+        prev_sets_data = []
+        if user_id:
+            prev_mde = (
+                db.query(models.MesocycleDayExercise)
+                .join(models.MesocycleDay)
+                .join(models.MesocycleWeek)
+                .join(models.Mesocycle)
+                .filter(
+                    models.Mesocycle.user_id == user_id,
+                    models.MesocycleDayExercise.exercise_id == mde.exercise_id,
+                    models.MesocycleDay.is_completed == True,
+                    models.MesocycleDayExercise.id != mde.id,  # Exclude current
+                )
+                .options(joinedload(models.MesocycleDayExercise.set_logs))
+                .order_by(models.MesocycleDayExercise.id.desc())
+                .first()
             )
 
-            # Calculate how many total sets
-            current_prescribed = mde.prescribed_sets
-            total_sets = current_prescribed + (1 if add_new_set else 0)
+            if prev_mde and prev_mde.set_logs:
+                for sl in sorted(prev_mde.set_logs, key=lambda s: s.set_number):
+                    if sl.weight > 0:  # Skip skipped sets
+                        prev_sets_data.append({
+                            "set_number": sl.set_number,
+                            "weight": sl.weight,
+                            "reps": sl.reps,
+                        })
 
-            # If deloading, potentially reduce sets
-            if progression_type == "deload":
-                total_sets = max(1, current_prescribed - 1)
-
-            set_targets = []
-            for s in range(1, total_sets + 1):
-                is_new = s > current_prescribed
-
-                # Find matching previous set for reference
-                prev_set = None
-                if prev_sets:
-                    for ps in prev_sets:
-                        if ps.set_number == s:
-                            prev_set = ps
-                            break
-                    # If new set, clone the last set's values
-                    if not prev_set and prev_sets:
-                        prev_set = prev_sets[-1]
-
-                if prev_set and prev_set.weight > 0:
-                    base_weight = prev_set.weight
-                    base_reps = prev_set.reps
-                else:
-                    # No previous data — can't generate target
-                    # Use current logged data if available
-                    current_log = None
-                    for sl in mde.set_logs:
-                        if sl.set_number == s:
-                            current_log = sl
-                            break
-                    if current_log and current_log.weight > 0:
-                        base_weight = current_log.weight
-                        base_reps = current_log.reps
-                    else:
-                        base_weight = 0
-                        base_reps = 0
-
-                target_weight = base_weight + weight_bump
-                target_reps = max(1, base_reps + rep_delta) if base_reps > 0 else 0
-
-                # For deload, reduce weight by ~10%
-                if progression_type == "deload" and base_weight > 0:
-                    target_weight = round(base_weight * 0.9 / 2.5) * 2.5  # Round to 2.5kg
-                    target_reps = base_reps  # Keep reps same on deload
-
-                set_targets.append({
-                    "set_number": s,
-                    "target_weight": target_weight,
-                    "target_reps": target_reps,
-                    "is_new_set": is_new,
-                })
-
-            targets.append({
-                "mde_id": mde.id,
-                "exercise_id": mde.exercise_id,
-                "exercise_name": mde.exercise.name,
-                "muscle_group": muscle_group,
-                "progression_type": progression_type,
-                "reason": reason,
-                "prescribed_sets": total_sets,
-                "set_targets": set_targets,
-            })
-
-    return targets
-
-
-def evaluate_set_performance(target_weight: float, target_reps: int,
-                               actual_weight: float, actual_reps: int) -> str:
-    """
-    Compare actual vs target and return verdict.
-    
-    Volume = weight × reps
-    - improved: actual volume > target volume
-    - hit: actual volume within 5% of target
-    - decreased: actual volume < 95% of target
-    """
-    if target_weight == 0 or target_reps == 0:
-        return "hit"  # No target available, neutral
-
-    target_volume = target_weight * target_reps
-    actual_volume = actual_weight * actual_reps
-
-    if target_volume == 0:
-        return "hit"
-
-    ratio = actual_volume / target_volume
-
-    if ratio >= 1.02:
-        return "improved"
-    elif ratio >= 0.95:
-        return "hit"
-    else:
-        return "decreased"
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# SMART PROGRESSION ENGINE - Per-Set Shadow Target System
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def _get_previous_week_day(db: Session, meso_day: models.MesocycleDay) -> Optional[models.MesocycleDay]:
-    """
-    Find the equivalent day from the previous week.
-    E.g., if this is Week 2, Day 1 -> find Week 1, Day 1
-    """
-    current_week = meso_day.week
-    if current_week.week_number <= 1:
-        return None
-    
-    # Find previous week
-    previous_week = db.query(models.MesocycleWeek).filter(
-        models.MesocycleWeek.mesocycle_id == current_week.mesocycle_id,
-        models.MesocycleWeek.week_number == current_week.week_number - 1
-    ).first()
-    
-    if not previous_week:
-        return None
-    
-    # Find matching day by order
-    previous_day = db.query(models.MesocycleDay).filter(
-        models.MesocycleDay.week_id == previous_week.id,
-        models.MesocycleDay.day_order == meso_day.day_order
-    ).first()
-    
-    return previous_day
-
-
-def _get_previous_session_feedback(
-    db: Session, 
-    previous_day: models.MesocycleDay, 
-    muscle_group: str
-) -> Optional[models.Feedback]:
-    """Get feedback for a specific muscle group from the previous session."""
-    return db.query(models.Feedback).filter(
-        models.Feedback.meso_day_id == previous_day.id,
-        models.Feedback.muscle_group == muscle_group
-    ).first()
-
-
-def _get_previous_session_sets(
-    db: Session, 
-    previous_day: models.MesocycleDay, 
-    exercise_id: int
-) -> List[models.SetLog]:
-    """Get all logged sets for an exercise from the previous session."""
-    # Find the MDE in previous day
-    previous_mde = db.query(models.MesocycleDayExercise).filter(
-        models.MesocycleDayExercise.meso_day_id == previous_day.id,
-        models.MesocycleDayExercise.exercise_id == exercise_id
-    ).first()
-    
-    if not previous_mde:
-        return []
-    
-    return db.query(models.SetLog).filter(
-        models.SetLog.mde_id == previous_mde.id
-    ).order_by(models.SetLog.set_number).all()
-
-
-def _get_current_day_soreness(
-    db: Session, 
-    current_day: models.MesocycleDay, 
-    muscle_group: str
-) -> Optional[str]:
-    """
-    Get TODAY's soreness for a muscle group.
-    This might be submitted at start of workout or we check existing feedback.
-    """
-    feedback = db.query(models.Feedback).filter(
-        models.Feedback.meso_day_id == current_day.id,
-        models.Feedback.muscle_group == muscle_group
-    ).first()
-    
-    if feedback:
-        return feedback.soreness
-    return None
-
-
-def calculate_smart_progression(
-    db: Session, 
-    meso_day_id: int,
-    soreness_overrides: Optional[dict] = None
-) -> List[dict]:
-    """
-    SMART PROGRESSION ENGINE
-    
-    Cross-references:
-    - Today's Soreness (current day)
-    - Last Session's Pump + Volume Feeling (previous week, same day)
-    
-    Returns per-exercise progression targets with shadow set values.
-    
-    Decision Matrix:
-    ┌─────────────┬───────────────────┬──────────────────┬──────────────────┐
-    │ Soreness    │ Pump: Great       │ Pump: Moderate   │ Pump: Low/None   │
-    │ (Today)     │ Vol: Just Right   │ Vol: Too Little  │ Vol: Too Much    │
-    ├─────────────┼───────────────────┼──────────────────┼──────────────────┤
-    │ None/Light  │ +Weight (2.5kg)   │ +Set             │ Maintain         │
-    │ Moderate    │ +Reps (+2)        │ +Reps (+1)       │ Maintain         │
-    │ Severe      │ Maintain          │ Deload (-10%)    │ Deload (-15%)    │
-    └─────────────┴───────────────────┴──────────────────┴──────────────────┘
-    """
-    from app.schemas import ProgressionType
-    
-    meso_day = db.query(models.MesocycleDay).filter(
-        models.MesocycleDay.id == meso_day_id
-    ).first()
-    
-    if not meso_day:
-        return []
-    
-    previous_day = _get_previous_week_day(db, meso_day)
-    
-    # Get all exercises for this day
-    mdes = db.query(models.MesocycleDayExercise).filter(
-        models.MesocycleDayExercise.meso_day_id == meso_day_id
-    ).order_by(models.MesocycleDayExercise.exercise_order).all()
-    
-    results = []
-    
-    for mde in mdes:
-        exercise = mde.exercise
-        muscle_group = exercise.target.lower()
-        
-        # Get today's soreness (from override or existing feedback)
-        if soreness_overrides and muscle_group in soreness_overrides:
-            today_soreness = soreness_overrides[muscle_group]
-        else:
-            today_soreness = _get_current_day_soreness(db, meso_day, muscle_group)
-        
-        # Default progression values
-        progression_type = ProgressionType.maintain
-        reason = "Week 1 baseline - no previous data"
-        weight_delta = 0.0
-        rep_delta = 0
-        deload_factor = 1.0
-        add_new_set = False
-        
-        # Get previous session data if available
-        previous_sets = []
-        if previous_day:
-            previous_sets = _get_previous_session_sets(db, previous_day, exercise.id)
-            prev_feedback = _get_previous_session_feedback(db, previous_day, muscle_group)
-            
-            if prev_feedback and previous_sets:
-                pump = prev_feedback.pump
-                volume = prev_feedback.volume_feeling
-                soreness = today_soreness or "none"
-                
-                # DECISION MATRIX IMPLEMENTATION
-                soreness_low = soreness in ["none", "light"]
-                soreness_mod = soreness == "moderate"
-                soreness_severe = soreness == "severe"
-                
-                pump_great = pump == "great"
-                pump_moderate = pump == "moderate"
-                pump_low = pump in ["none", "light"]
-                
-                vol_right = volume == "just_right"
-                vol_low = volume == "too_little"
-                vol_high = volume == "too_much"
-                
-                # Row 1: No/Light Soreness
-                if soreness_low:
-                    if pump_great and vol_right:
-                        progression_type = ProgressionType.add_weight
-                        weight_delta = 2.5
-                        reason = f"Great pump + good volume + fresh → +2.5kg"
-                    elif pump_low or vol_low:
-                        progression_type = ProgressionType.add_set
-                        add_new_set = True
-                        reason = f"Low stimulus detected → +1 set for more volume"
-                    elif vol_high:
-                        progression_type = ProgressionType.maintain
-                        reason = f"Volume felt high but recovered well → maintain"
-                    else:
-                        progression_type = ProgressionType.add_reps
-                        rep_delta = 1
-                        reason = f"Moderate signals + recovered → +1 rep"
-                
-                # Row 2: Moderate Soreness
-                elif soreness_mod:
-                    if pump_great or vol_right:
-                        progression_type = ProgressionType.add_reps
-                        rep_delta = 2
-                        reason = f"Good stimulus but still sore → +2 reps (no load increase)"
-                    elif vol_low:
-                        progression_type = ProgressionType.add_reps
-                        rep_delta = 1
-                        reason = f"Need more volume but sore → careful +1 rep"
-                    else:
-                        progression_type = ProgressionType.maintain
-                        reason = f"Moderate soreness + high volume → maintain and recover"
-                
-                # Row 3: Severe Soreness
-                elif soreness_severe:
-                    if vol_high or pump_low:
-                        progression_type = ProgressionType.deload
-                        deload_factor = 0.85
-                        reason = f"Severe soreness + overreached → deload 15%"
-                    elif vol_low:
-                        progression_type = ProgressionType.deload
-                        deload_factor = 0.90
-                        reason = f"Severe soreness → deload 10% despite low volume feel"
-                    else:
-                        progression_type = ProgressionType.maintain
-                        reason = f"Severe soreness but signals mixed → maintain (recovery priority)"
-        
-        # Calculate set targets
+        # ── Calculate per-set targets ──
         set_targets = []
-        
-        if previous_sets:
-            # Base targets on previous performance
-            for prev_set in previous_sets:
-                target_weight = prev_set.weight
-                target_reps = prev_set.reps
-                
-                # Apply progression adjustments
-                if progression_type == ProgressionType.add_weight:
-                    target_weight += weight_delta
-                elif progression_type == ProgressionType.add_reps:
-                    target_reps += rep_delta
-                elif progression_type == ProgressionType.deload:
-                    target_weight = round(target_weight * deload_factor, 1)
-                
+
+        for set_num in range(1, mde.prescribed_sets + 1):
+            # Find the matching set from previous session
+            prev_set = next(
+                (s for s in prev_sets_data if s["set_number"] == set_num),
+                None
+            )
+
+            if prev_set and prev_set["weight"] > 0:
+                # We have history for this set — apply double progression
+                target = calculate_set_target(
+                    last_weight=prev_set["weight"],
+                    last_reps=prev_set["reps"],
+                    is_dumbbell=is_db,
+                    recovery_state=recovery_state,
+                    stimulus_quality=stimulus_quality,
+                )
                 set_targets.append({
-                    "set_number": prev_set.set_number,
-                    "target_weight": target_weight,
-                    "target_reps": target_reps,
-                    "is_new_set": False
+                    "set_number": set_num,
+                    "target_weight": target["target_weight"],
+                    "target_reps": target["target_reps"],
+                    "action": target["action"],
+                    "reason": target["reason"],
+                    "source": "history",
                 })
-            
-            # Add new set if prescribed
-            if add_new_set:
-                last_set = previous_sets[-1]
-                set_targets.append({
-                    "set_number": len(previous_sets) + 1,
-                    "target_weight": last_set.weight,
-                    "target_reps": max(last_set.reps - 2, 5),  # Slightly lower reps for new set
-                    "is_new_set": True
-                })
-        else:
-            # No previous data - create baseline targets
-            # Use prescribed sets/reps or defaults
-            for i in range(mde.prescribed_sets):
-                set_targets.append({
-                    "set_number": i + 1,
-                    "target_weight": 0,  # User needs to establish
-                    "target_reps": mde.prescribed_reps or 10,
-                    "is_new_set": False
-                })
-        
+
+            elif prev_sets_data:
+                # No data for this specific set number (maybe it's a new set)
+                # Use the average of existing sets as a starting point
+                valid_sets = [s for s in prev_sets_data if s["weight"] > 0]
+                if valid_sets:
+                    avg_weight = sum(s["weight"] for s in valid_sets) / len(valid_sets)
+                    avg_reps = int(
+                        sum(s["reps"] for s in valid_sets) / len(valid_sets)
+                    )
+                    set_targets.append({
+                        "set_number": set_num,
+                        "target_weight": round(avg_weight, 1),
+                        "target_reps": avg_reps,
+                        "action": "new_set",
+                        "reason": (
+                            f"New set added. Starting at average of previous "
+                            f"sets: {avg_weight:.1f}kg × {avg_reps} reps."
+                        ),
+                        "source": "autofill",
+                    })
+                else:
+                    set_targets.append({
+                        "set_number": set_num,
+                        "target_weight": 0,
+                        "target_reps": DEFAULT_REP_FLOOR,
+                        "action": "initialize",
+                        "reason": "No usable previous data. Enter your working weight.",
+                        "source": "no_data",
+                    })
+
+            else:
+                # No history at all — check autofill from any previous occurrence
+                if user_id:
+                    autofill = get_last_weight_for_exercise(
+                        db, mde.exercise_id, user_id
+                    )
+                    if autofill and autofill["weight"]:
+                        set_targets.append({
+                            "set_number": set_num,
+                            "target_weight": autofill["weight"],
+                            "target_reps": autofill.get("reps", DEFAULT_REP_FLOOR),
+                            "action": "autofill",
+                            "reason": (
+                                f"No session history found. Using last logged weight: "
+                                f"{autofill['weight']}kg × {autofill.get('reps', DEFAULT_REP_FLOOR)}."
+                            ),
+                            "source": "autofill",
+                        })
+                    else:
+                        set_targets.append({
+                            "set_number": set_num,
+                            "target_weight": 0,
+                            "target_reps": DEFAULT_REP_FLOOR,
+                            "action": "initialize",
+                            "reason": (
+                                "First time doing this exercise. "
+                                "Enter your working weight."
+                            ),
+                            "source": "no_data",
+                        })
+                else:
+                    set_targets.append({
+                        "set_number": set_num,
+                        "target_weight": 0,
+                        "target_reps": DEFAULT_REP_FLOOR,
+                        "action": "initialize",
+                        "reason": "No data available.",
+                        "source": "no_data",
+                    })
+
         results.append({
             "mde_id": mde.id,
-            "exercise_id": exercise.id,
-            "exercise_name": exercise.name,
+            "exercise_id": mde.exercise_id,
+            "exercise_name": exercise_name,
             "muscle_group": muscle_group,
-            "progression_type": progression_type.value,
-            "reason": reason,
+            "equipment": equipment or "unknown",
+            "is_dumbbell": is_db,
             "prescribed_sets": mde.prescribed_sets,
-            "set_targets": set_targets
+            "recovery_state": recovery_state,
+            "stimulus_quality": stimulus_quality,
+            "feedback_summary": {
+                "avg_soreness": round(avg_soreness, 2),
+                "avg_pump": round(avg_pump, 2),
+                "avg_volume_feeling": round(avg_volume, 2),
+            },
+            "set_targets": set_targets,
         })
-    
+
     return results
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# SET PERFORMANCE EVALUATION
+# ═══════════════════════════════════════════════════════════════════════════
+
 def evaluate_set_performance(
-    db: Session,
-    set_log_id: int
-) -> dict:
+    target_weight: float,
+    target_reps: int,
+    actual_weight: float,
+    actual_reps: int
+) -> str:
     """
-    Evaluate a logged set against its target.
-    
-    Compares: actual_volume vs target_volume
-    Volume = weight × reps
-    
-    Returns verdict: 'hit' (within 5%), 'improved' (>5% better), 'decreased' (>5% worse)
+    Evaluate actual performance against targets.
+
+    Compares the volume load (weight × reps) and individual components
+    to produce a simple verdict.
+
+    Args:
+        target_weight: Prescribed target weight
+        target_reps: Prescribed target reps
+        actual_weight: What the user actually lifted
+        actual_reps: How many reps the user actually completed
+
+    Returns:
+        One of:
+            'exceeded'  — beat the target on both weight and reps
+            'hit'       — met the target (within tolerance)
+            'partial'   — met one dimension but not the other
+            'missed'    — fell short on both
     """
-    from app.schemas import SetPerformanceVerdict
-    
-    set_log = db.query(models.SetLog).filter(models.SetLog.id == set_log_id).first()
-    if not set_log:
-        return {"error": "Set not found"}
-    
-    mde = set_log.mesocycle_day_exercise
-    meso_day = mde.mesocycle_day
-    
-    # Get targets for this day
-    targets = calculate_smart_progression(db, meso_day.id)
-    
-    # Find target for this exercise
-    exercise_target = None
-    for t in targets:
-        if t["mde_id"] == mde.id:
-            exercise_target = t
-            break
-    
-    if not exercise_target:
-        return {
-            "verdict": SetPerformanceVerdict.hit.value,
-            "target_weight": set_log.weight,
-            "target_reps": set_log.reps,
-            "actual_weight": set_log.weight,
-            "actual_reps": set_log.reps,
-            "note": "No target data available"
-        }
-    
-    # Find specific set target
-    set_target = None
-    for st in exercise_target["set_targets"]:
-        if st["set_number"] == set_log.set_number:
-            set_target = st
-            break
-    
-    if not set_target or set_target["target_weight"] == 0:
-        return {
-            "verdict": SetPerformanceVerdict.hit.value,
-            "target_weight": set_log.weight,
-            "target_reps": set_log.reps,
-            "actual_weight": set_log.weight,
-            "actual_reps": set_log.reps,
-            "note": "Baseline set - no comparison"
-        }
-    
-    # Calculate volumes
-    target_volume = set_target["target_weight"] * set_target["target_reps"]
-    actual_volume = set_log.weight * set_log.reps
-    
-    # Determine verdict
-    if target_volume == 0:
-        verdict = SetPerformanceVerdict.hit
+    if target_weight <= 0 or target_reps <= 0:
+        return "hit"  # No target to compare against
+
+    weight_met = actual_weight >= target_weight
+    reps_met = actual_reps >= target_reps
+
+    # Calculate volume load comparison
+    target_volume = target_weight * target_reps
+    actual_volume = actual_weight * actual_reps
+
+    if weight_met and reps_met:
+        if actual_weight > target_weight and actual_reps > target_reps:
+            return "exceeded"
+        return "hit"
+
+    elif weight_met or reps_met:
+        # One dimension met — check if overall volume is close
+        if actual_volume >= target_volume * 0.95:
+            return "hit"  # Volume-equivalent performance
+        return "partial"
+
     else:
-        ratio = actual_volume / target_volume
-        if ratio >= 1.05:
-            verdict = SetPerformanceVerdict.improved
-        elif ratio <= 0.95:
-            verdict = SetPerformanceVerdict.decreased
-        else:
-            verdict = SetPerformanceVerdict.hit
-    
-    return {
-        "verdict": verdict.value,
-        "target_weight": set_target["target_weight"],
-        "target_reps": set_target["target_reps"],
-        "actual_weight": set_log.weight,
-        "actual_reps": set_log.reps
-    }
-
-
-def get_exercise_history_for_progression(
-    db: Session,
-    user_id: int,
-    exercise_id: int,
-    limit: int = 10
-) -> List[dict]:
-    """
-    Get recent performance history for an exercise across all mesocycles.
-    Useful for long-term progression tracking.
-    """
-    # Get all MDEs for this exercise across user's mesocycles
-    history = db.query(models.SetLog).join(
-        models.MesocycleDayExercise
-    ).join(
-        models.MesocycleDay
-    ).join(
-        models.MesocycleWeek
-    ).join(
-        models.Mesocycle
-    ).filter(
-        models.Mesocycle.user_id == user_id,
-        models.MesocycleDayExercise.exercise_id == exercise_id
-    ).order_by(
-        models.SetLog.logged_at.desc()
-    ).limit(limit * 5).all()  # Get more to group by session
-    
-    # Group by session and calculate estimated 1RM
-    sessions = {}
-    for log in history:
-        session_key = log.logged_at.date()
-        if session_key not in sessions:
-            sessions[session_key] = {
-                "date": session_key.isoformat(),
-                "sets": [],
-                "best_set_volume": 0,
-                "estimated_1rm": 0
-            }
-        
-        volume = log.weight * log.reps
-        sessions[session_key]["sets"].append({
-            "weight": log.weight,
-            "reps": log.reps,
-            "volume": volume
-        })
-        
-        if volume > sessions[session_key]["best_set_volume"]:
-            sessions[session_key]["best_set_volume"] = volume
-            # Brzycki formula for estimated 1RM
-            if log.reps < 37:
-                e1rm = log.weight * (36 / (37 - log.reps))
-                sessions[session_key]["estimated_1rm"] = round(e1rm, 1)
-    
-    # Convert to list and sort
-    result = list(sessions.values())
-    result.sort(key=lambda x: x["date"], reverse=True)
-    
-    return result[:limit]
+        # Both missed — but how badly?
+        if actual_volume >= target_volume * 0.90:
+            return "partial"  # Close enough to not be alarming
+        return "missed"

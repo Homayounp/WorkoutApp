@@ -1,60 +1,140 @@
-# 🏋️ Progressive Overload Workout Tracker
+# Iron Protocol — Adaptive Resistance Training System
 
-A full-stack web application for tracking workouts with progressive overload 
-analysis, built with **FastAPI** (Python) and **React** (JavaScript).
+An intelligent workout tracker that implements **feedback-driven progressive overload**
+using a double-progression model with real-time biofeedback adaptation.
 
-## 🎯 Project Motivation
+> Unlike passive workout loggers, Iron Protocol continuously adapts training
+> prescriptions (weight, reps, and volume) based on physiological feedback
+> signals — soreness, pump quality, and perceived workload — creating a
+> personalized auto-regulating training system.
 
-Progressive overload is the foundational principle of strength training — 
-systematically increasing training stimulus over time. Most workout apps 
-treat logging as a passive record. This application actively analyzes 
-workout history to provide actionable progression recommendations using 
-a simple algorithm based on volume load (sets × reps × weight) trends.
+## The Problem
 
-## 🏗️ Architecture
+Progressive overload — systematically increasing training demands over
+time — is the foundational driver of muscular hypertrophy. However, most
+trainees either:
+
+1. **Progress too aggressively**, accumulating fatigue faster than they can
+   recover, leading to stagnation or injury
+2. **Progress too conservatively**, never reaching the stimulus threshold
+   needed for adaptation
+3. **Ignore biofeedback signals**, following rigid programs that don't
+   account for individual recovery variance
+
+## The Solution: Adaptive Progression Engine
+
+Iron Protocol uses a **multi-signal decision matrix** to prescribe training
+variables session-by-session:
+
+### Double Progression Model (Weight & Reps)
 ```text
-┌─────────────┐     HTTP/JSON      ┌──────────────┐     SQLAlchemy     ┌────────────┐
-│   React SPA  │ ◄──────────────► │  FastAPI API   │ ◄───────────────► │  PostgreSQL │
-│  (Port 3000) │    JWT Bearer     │  (Port 8000)   │     ORM          │  (Port 5432)│
-└─────────────┘                    └──────────────┘                    └────────────┘
+┌─────────────────────┐
+│  Can weight increase │
+│  by ~2.5% with       │
+│  available equipment?│
+└─────────┬───────────┘
+╱          ╲
+YES           NO
+╱              ╲
+┌───────▼──────┐  ┌─────▼──────────┐
+│ ↑ Weight     │  │ Are reps at     │
+│ Reset reps   │  │ range ceiling?  │
+│ to floor     │  │ (e.g., 12)      │
+└──────────────┘  └────┬────────────┘
+╱     ╲
+YES      NO
+╱         ╲
+┌────────▼──┐  ┌────▼──────┐
+│Force weight│  │ ↑ Reps +1 │
+│jump, reset │  │Keep weight │
+│reps to 8   │  │ same       │
+└────────────┘  └───────────┘
 
-## ✨ Key Features
+### Feedback-Driven Volume Modulation (Sets)
 
-- **JWT Authentication** with access/refresh token rotation
-- **RESTful API** with OpenAPI/Swagger documentation
-- **Progressive Overload Analysis** — compares current vs. historical 
-  volume load per exercise
-- **Database migrations** with Alembic
-- **Containerized** with Docker Compose
-- **CI/CD pipeline** with GitHub Actions (lint + test)
-- **85%+ test coverage** with pytest
+Three biofeedback signals are collected after each training day:
 
-## 🛠️ Tech Stack
+| Signal | Scale | What It Measures |
+|--------|-------|------------------|
+| **Soreness** | None → Severe (0-3) | Recovery status / accumulated fatigue |
+| **Pump** | None → Great (0-3) | Acute mechanical tension and metabolic stress |
+| **Volume Perception** | Too Little → Too Much (-1 to +1) | Perceived workload relative to capacity |
 
-| Layer      | Technology                          |
-|------------|-------------------------------------|
-| Frontend   | React 18, React Router, Axios       |
-| Backend    | FastAPI, Pydantic, SQLAlchemy 2.0   |
-| Database   | PostgreSQL (prod) / SQLite (dev)    |
-| Auth       | JWT (python-jose), bcrypt           |
-| Testing    | pytest, pytest-cov, httpx           |
-| DevOps     | Docker, Docker Compose, GitHub Actions |
-| Migrations | Alembic                             |
+These signals are classified into a **Recovery × Stimulus** matrix:
 
-## 🚀 Quick Start
+| | Insufficient Stimulus | Optimal Stimulus | Excessive Stimulus |
+|---|---|---|---|
+| **Fully Recovered** | +1 set | +1 set (overload) | Hold |
+| **Mostly Recovered** | +1 set | Hold | -1 set |
+| **Under-Recovered** | -1 set | -1 set | -2 sets |
+| **Overtrained** | -2 sets | -2 sets | -2 sets |
 
-### With Docker (recommended):
+### Equipment-Aware Weight Rounding
+
+The system accounts for real-world equipment constraints. For example,
+dumbbells are only available in fixed increments (10kg, 12.5kg, 15kg...).
+If the calculated weight increase would require a jump that exceeds 2.5×
+the target percentage, the system adds a rep instead of forcing an
+unrealistic weight jump.
+
+## Architecture
+
+text
+┌──────────────┐      HTTP/JSON       ┌─────────────────────┐
+│  React SPA   │ ◄──────────────────► │    FastAPI Backend   │
+│  (Frontend)  │     JWT Bearer       │                     │
+└──────────────┘                      │  ┌───────────────┐  │
+│  │  Progression   │  │
+│  │  Engine        │  │     ┌────────────┐
+│  │                │  │────►│ PostgreSQL │
+│  │ • Weight Calc  │  │     │            │
+│  │ • Rep Calc     │  │     │ • Users    │
+│  │ • Volume Calc  │  │     │ • Plans    │
+│  │ • Feedback Agg │  │     │ • Mesos    │
+│  └───────────────┘  │     │ • SetLogs  │
+└─────────────────────┘     │ • Feedback │
+└────────────┘
+
+### Data Model
+
+text
+Plan (template)
+ └── PlanDay
+└── PlanDayExercise
+
+Mesocycle (execution instance of a Plan)
+ └── MesocycleWeek
+└── MesocycleDay
+├── MesocycleDayExercise
+│    └── SetLog (weight, reps, per set)
+└── Feedback (soreness, pump, volume_feeling, per muscle)
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18, React Router, Axios |
+| Backend | FastAPI, Pydantic v2, SQLAlchemy 2.0 |
+| Database | PostgreSQL (production) / SQLite (development) |
+| Auth | JWT with access/refresh token rotation (python-jose, bcrypt) |
+| Testing | pytest, pytest-cov, httpx |
+| DevOps | Docker, Docker Compose, GitHub Actions CI/CD |
+| Migrations | Alembic |
+
+## Quick Start
+
+### Docker (recommended)
 bash
-git clone https://github.com/YOUR_USERNAME/workout-tracker.git
-cd workout-tracker
+git clone https://github.com/Homayounp/WorkoutApp.git
+cd WorkoutApp
 docker-compose up --build
 
-### Manual Setup:
+### Manual Setup
 bash
 # Backend
 cd backend
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
 alembic upgrade head
 uvicorn app.main:app --reload
@@ -64,171 +144,95 @@ cd frontend
 npm install
 npm start
 
-## 📊 API Documentation
+## API Documentation
 
-Once running, visit: `http://localhost:8000/docs`
+Interactive docs available at `http://localhost:8000/docs` when running.
 
-### Key Endpoints:
+### Core Endpoints
 
-| Method | Endpoint              | Description            | Auth |
-|--------|-----------------------|------------------------|------|
-| POST   | `/auth/register`      | Create new account     | ❌   |
-| POST   | `/auth/login`         | Get JWT tokens         | ❌   |
-| GET    | `/workouts/`          | List user workouts     | ✅   |
-| POST   | `/workouts/`          | Create workout         | ✅   |
-| POST   | `/logs/`              | Log a workout session  | ✅   |
-| GET    | `/logs/`              | Get workout history    | ✅   |
-| GET    | `/analytics/progress` | Progressive overload data | ✅ |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/auth/register` | Create account |
+| POST | `/auth/login` | JWT authentication |
+| POST | `/plans/` | Create training plan template |
+| POST | `/mesocycles/` | Start a mesocycle from a plan |
+| GET | `/mesocycles/{id}/current-workout` | Get today's prescribed workout |
+| POST | `/mesocycle-day-exercises/{id}/log-set` | Log a completed set |
+| POST | `/mesocycle-days/{id}/feedback` | Submit biofeedback |
+| POST | `/mesocycle-days/{id}/complete` | Mark training day complete |
+| GET | `/mesocycle-days/{id}/smart-targets` | Get AI-prescribed targets |
+| POST | `/mesocycles/{id}/next-week` | Advance with auto-progression |
 
-## 📸 Screenshots
+## Theoretical Foundation
 
-<screenshots go here>
+The progression algorithms are grounded in established exercise science
+principles:
 
-## 🧪 Testing
+- **Progressive Overload Principle**: Systematic increase of training
+  demands is required to drive continued adaptation (Schoenfeld, 2010)
+- **Stimulus-Recovery-Adaptation (SRA) Curve**: Training volume must be
+  calibrated to individual recovery capacity (Verkhoshansky & Siff, 2009)
+- **Double Progression**: When equipment constraints prevent linear weight
+  increases, adding reps serves as an intermediate progression step
+  (Helms et al., 2015)
+- **Auto-regulation**: Using subjective biofeedback (RPE, soreness,
+  perceived effort) to modify training in real-time produces superior
+  outcomes vs. rigid programming (Helms et al., 2018)
 
-bash
-cd backend
-pytest --cov=app --cov-report=html
-# Coverage: 85%+
+## Future Roadmap
 
-## 📁 Project Structure
-
-<paste the tree from above>
-
-## 🔮 Future Improvements
-
-- [ ] Workout templates and routine scheduling
-- [ ] Exercise library with muscle group categorization
-- [ ] Data export (CSV/PDF)
+- [ ] Muscle group recovery time modeling (48h vs 72h based on volume)
+- [ ] Periodization support (accumulation → intensification → deload cycles)
+- [ ] Exercise substitution recommendations based on equipment availability
+- [ ] Data export (CSV/PDF) for coach review
 - [ ] Mobile-responsive PWA
-- [ ] Rate limiting and request throttling
 
-## 📝 License
+## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT
 
 
 ---
 
-### Day 3: Add the "Progressive Overload Analysis" Feature
+## Phase 5: Architecture Diagram for Your CV
 
-This is what transforms your project from "tutorial clone" to "I actually think about problems." Add this to your backend:
+Here's a proper system architecture diagram you can render with any diagramming tool (draw.io, Mermaid, etc.):
 
-**New file: `backend/app/analytics.py`**
-
-```python
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-from app.models import UserLog, Workout
-from datetime import datetime, timedelta, timezone
-
-
-def calculate_volume_load(sets: int, reps: int, load: float) -> float:
-    """Volume Load = Sets × Reps × Load (kg)"""
-    return sets * reps * load
-
-
-def get_exercise_progression(db: Session, user_id: int, workout_id: int, weeks: int = 4):
-    """
-    Analyze progressive overload for a specific exercise over N weeks.
-    Returns weekly volume load trend and recommendation.
-    """
-    cutoff = datetime.now(timezone.utc) - timedelta(weeks=weeks)
-    
-    logs = (
-        db.query(UserLog)
-        .filter(
-            UserLog.user_id == user_id,
-            UserLog.workout_id == workout_id,
-            UserLog.date >= cutoff
-        )
-        .order_by(UserLog.date.asc())
-        .all()
-    )
-    
-    if not logs:
-        return {"status": "no_data", "message": "No logs found for this exercise."}
-    
-    # Group by week
-    weekly_volumes = {}
-    for log in logs:
-        week_key = log.date.isocalendar()[1]  # ISO week number
-        volume = calculate_volume_load(log.sets, log.reps, log.load)
-        if week_key not in weekly_volumes:
-            weekly_volumes[week_key] = []
-        weekly_volumes[week_key].append(volume)
-    
-    # Calculate weekly averages
-    weekly_avg = {
-        week: sum(vols) / len(vols) 
-        for week, vols in weekly_volumes.items()
-    }
-    
-    weeks_sorted = sorted(weekly_avg.keys())
-    trend = [{"week": w, "avg_volume_load": round(weekly_avg[w], 1)} for w in weeks_sorted]
-    
-    # Determine progression status
-    if len(weeks_sorted) >= 2:
-        first_week_vol = weekly_avg[weeks_sorted[0]]
-        last_week_vol = weekly_avg[weeks_sorted[-1]]
-        change_pct = ((last_week_vol - first_week_vol) / first_week_vol) * 100
-        
-        if change_pct > 5:
-            status = "progressing"
-            recommendation = "Great progress! Continue current trajectory."
-        elif change_pct > -5:
-            status = "plateau"
-            recommendation = (
-                "Volume is stagnant. Consider: increase load by 2.5kg, "
-                "add 1 rep per set, or add 1 extra set."
-            )
-        else:
-            status = "regressing"
-            recommendation = (
-                "Volume is declining. Check recovery, sleep, and nutrition. "
-                "Consider a deload week."
-            )
-    else:
-        status = "insufficient_data"
-        change_pct = 0.0
-        recommendation = "Log more sessions for trend analysis."
-    
-    return {
-        "workout_id": workout_id,
-        "period_weeks": weeks,
-        "total_sessions": len(logs),
-        "weekly_trend": trend,
-        "change_percentage": round(change_pct, 1),
-        "status": status,
-        "recommendation": recommendation,
-    }
-
-
-def get_user_summary(db: Session, user_id: int):
-    """Overall training summary for a user."""
-    total_logs = db.query(func.count(UserLog.id)).filter(
-        UserLog.user_id == user_id
-    ).scalar()
-    
-    total_volume = db.query(
-        func.sum(UserLog.sets * UserLog.reps * UserLog.load)
-    ).filter(UserLog.user_id == user_id).scalar() or 0
-    
-    unique_exercises = db.query(
-        func.count(func.distinct(UserLog.workout_id))
-    ).filter(UserLog.user_id == user_id).scalar()
-    
-    # Training frequency (sessions per week, last 4 weeks)
-    four_weeks_ago = datetime.now(timezone.utc) - timedelta(weeks=4)
-    recent_sessions = db.query(func.count(UserLog.id)).filter(
-        UserLog.user_id == user_id,
-        UserLog.date >= four_weeks_ago
-    ).scalar()
-    avg_frequency = round(recent_sessions / 4, 1)
-    
-    return {
-        "total_sessions": total_logs,
-        "total_volume_load": round(total_volume, 1),
-        "unique_exercises": unique_exercises,
-        "avg_sessions_per_week": avg_frequency,
-    }
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        IRON PROTOCOL — SYSTEM ARCHITECTURE              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌─────────────┐                              ┌──────────────────────┐ │
+│  │   CLIENT     │                              │     DATABASE         │ │
+│  │   (React)    │                              │    (PostgreSQL)      │ │
+│  │              │         ┌──────────────┐     │                      │ │
+│  │ • Workout UI │────────►│              │     │  ┌────────────────┐  │ │
+│  │ • Feedback   │  JSON   │   FastAPI    │     │  │ users          │  │ │
+│  │   Forms      │◄────────│   Backend    │     │  ├────────────────┤  │ │
+│  │ • Progress   │  JWT    │              │────►│  │ exercises      │  │ │
+│  │   Charts     │         │ ┌──────────┐ │ SQL │  ├────────────────┤  │ │
+│  │ • History    │         │ │  Auth    │ │     │  │ plans          │  │ │
+│  └─────────────┘         │ │  Layer   │ │     │  │ plan_days      │  │ │
+│                           │ ├──────────┤ │     │  │ plan_day_exers │  │ │
+│                           │ │  CRUD    │ │     │  ├────────────────┤  │ │
+│                           │ │  Layer   │ │     │  │ mesocycles     │  │ │
+│                           │ ├──────────┤ │     │  │ meso_weeks     │  │ │
+│                           │ │PROGRESSION│ │     │  │ meso_days      │  │ │
+│                           │ │ ENGINE   │ │     │  │ meso_day_exers │  │ │
+│                           │ │          │ │     │  ├────────────────┤  │ │
+│                           │ │• Weight  │ │     │  │ set_logs       │  │ │
+│                           │ │  Calc    │ │     │  │ feedbacks      │  │ │
+│                           │ │• Rep     │ │     │  └────────────────┘  │ │
+│                           │ │  Calc    │ │     │                      │ │
+│                           │ │• Volume  │ │     └──────────────────────┘ │
+│                           │ │  Calc    │ │                              │
+│                           │ │• Feedback│ │     ┌──────────────────────┐ │
+│                           │ │  Matrix  │ │     │      CI/CD           │ │
+│                           │ └──────────┘ │     │   GitHub Actions     │ │
+│                           └──────────────┘     │  • Lint (flake8)     │ │
+│                                                │  • Test (pytest)     │ │
+│                                                │  • Build (Docker)    │ │
+│                                                └──────────────────────┘ │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
